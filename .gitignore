@@ -1,0 +1,10 @@
+# Dependencias
+node_modules/
+**/node_modules/
+
+# Variables de entorno
+.env
+**/.env
+
+# Sí permitimos archivos de ejemplo
+!**/.env.example
