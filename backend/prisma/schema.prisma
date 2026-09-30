@@ -1,0 +1,76 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EstadoTransmision {
+  COTIZADA
+  ACEPTADA
+  CONFIRMADA
+  REALIZADA
+  RENDIDA
+  CERRADA
+  RECHAZADA
+  CANCELADA
+}
+
+model Cliente {
+  id            Int           @id @default(autoincrement())
+  nombre        String        @db.VarChar(150)
+  transmisiones Transmision[]
+  creadoEn      DateTime      @default(now()) @db.Timestamptz(3)
+  actualizadoEn DateTime      @updatedAt @db.Timestamptz(3)
+
+  @@map("clientes")
+}
+
+model Transmision {
+  id              Int               @id @default(autoincrement())
+  nombreEvento    String            @db.VarChar(200)
+  inicio          DateTime          @db.Timestamptz(3)
+  termino         DateTime          @db.Timestamptz(3)
+  lugar           String            @db.VarChar(250)
+  cantidadCamaras Int
+  precioCotizado  Decimal           @db.Decimal(14, 0)
+  salidaRegiones  Boolean           @default(false)
+  estado          EstadoTransmision @default(COTIZADA)
+
+  clienteId Int
+  cliente   Cliente @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+
+  creadoEn      DateTime @default(now()) @db.Timestamptz(3)
+  actualizadoEn DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([inicio])
+  @@index([clienteId])
+  @@map("transmisiones")
+}
+
+enum RolUsuario {
+  DUENO
+  CONTADOR
+  JEFE_TECNICO
+}
+
+model Usuario {
+  id            Int        @id @default(autoincrement())
+  nombre        String     @db.VarChar(150)
+  email         String     @unique @db.VarChar(254)
+  passwordHash  String     @db.VarChar(255)
+  rol           RolUsuario
+  activo        Boolean    @default(true)
+  creadoEn      DateTime   @default(now()) @db.Timestamptz(3)
+  actualizadoEn DateTime   @updatedAt @db.Timestamptz(3)
+
+  @@map("usuarios")
+}
