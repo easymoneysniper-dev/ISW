@@ -1,9 +1,9 @@
+// Crea el primer usuario (rol DUENO) con los datos ADMIN_* del .env.
+// Uso: npm run crear-usuario   (desde la carpeta backend)
 require("dotenv").config();
 
-const { PrismaClient } = require("@prisma/client");
 const bcrypt = require("bcryptjs");
-
-const prisma = new PrismaClient();
+const prisma = require("../src/config/prisma");
 
 async function crearUsuario() {
   const nombre = process.env.ADMIN_NOMBRE?.trim();

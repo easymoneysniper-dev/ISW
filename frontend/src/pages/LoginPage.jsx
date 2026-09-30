@@ -1,46 +1,29 @@
+// Pantalla de inicio de sesión. Usa el hook useSesion() para iniciar la sesión.
 import { useState } from "react";
-import "./Login.css";
+import { useSesion } from "../hooks/useSesion";
+import "./LoginPage.css";
 
-function Login({ onLogin }) {
+function LoginPage() {
+  const { iniciarSesion } = useSesion();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [enviando, setEnviando] = useState(false);
 
-  async function iniciarSesion(evento) {
+  async function manejarEnvio(evento) {
     evento.preventDefault();
     setError("");
     setEnviando(true);
 
-    const API_URL =
-      import.meta.env.VITE_API_URL || "http://localhost:3000";
-
     try {
-      const respuesta = await fetch(`${API_URL}/api/login`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const datos = await respuesta.json();
-
-      if (!respuesta.ok) {
-        throw new Error(datos.message || "No se pudo iniciar sesión");
-      }
-
-      setPassword("");
-      onLogin(datos.usuario);
+      await iniciarSesion(email, password);
     } catch (error) {
       setError(error.message);
-    } finally {
       setEnviando(false);
     }
   }
 
-    return (
+  return (
     <main className="login-page">
       <div className="login-container">
         <div className="login-brand">
@@ -70,7 +53,7 @@ function Login({ onLogin }) {
             <p>Ingresa tus credenciales para continuar.</p>
           </div>
 
-          <form className="login-form" onSubmit={iniciarSesion}>
+          <form className="login-form" onSubmit={manejarEnvio}>
             <div className="login-field">
               <label htmlFor="email">Correo electrónico</label>
               <input
@@ -129,4 +112,4 @@ function Login({ onLogin }) {
   );
 }
 
-export default Login;
+export default LoginPage;

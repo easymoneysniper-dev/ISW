@@ -2,11 +2,12 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "crear-usuario": "node scripts/crearUsuario.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
@@ -19,7 +20,7 @@
     "dotenv": "^18.0.3",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
-    "pg": "^8.23.0",
+    "morgan": "^1.12.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {
