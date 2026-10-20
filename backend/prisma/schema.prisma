@@ -75,3 +75,31 @@ model Usuario {
 
   @@map("usuarios")
 }
+
+model Trabajador {
+  id            Int      @id @default(autoincrement())
+  nombre        String   @db.VarChar(150)
+  rut           String   @unique @db.VarChar(20)
+  telefono      String?  @db.VarChar(30)
+  email         String?  @unique @db.VarChar(254)
+  roles         String[]
+  activo        Boolean  @default(true)
+  creadoEn      DateTime @default(now()) @db.Timestamptz(3)
+  actualizadoEn DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("trabajadores")
+}
+
+model RegistroCambio {
+  id        Int      @id @default(autoincrement())
+  usuarioId Int?
+  modulo    String   @db.VarChar(20)
+  accion    String   @db.VarChar(50)
+  entidad   String   @db.VarChar(100)
+  entidadId Int?
+  detalle   String?  @db.VarChar(500)
+  creadoEn  DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([creadoEn])
+  @@map("registros_cambio")
+}

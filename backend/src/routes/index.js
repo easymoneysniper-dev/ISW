@@ -4,11 +4,13 @@ const { Router } = require("express");
 const healthRoutes = require("./health.routes");
 const authRoutes = require("./auth.routes");
 const transmisionRoutes = require("./transmision.routes");
+const trabajadorRoutes = require("./trabajador.routes");
 
 const router = Router();
 
 router.use("/", healthRoutes); // /api/health, /api/db-test
 router.use("/", authRoutes); // /api/login, /api/sesion, /api/logout
 router.use("/transmisiones", transmisionRoutes); // /api/transmisiones
+router.use("/trabajadores", trabajadorRoutes); // /api/trabajadores
 
 module.exports = router;
