@@ -38,7 +38,7 @@ async function crearUsuario() {
       nombre,
       email,
       passwordHash,
-      rol: "DUENO",
+      rol: "ADMIN_DESARROLLO",
     },
     select: {
       id: true,

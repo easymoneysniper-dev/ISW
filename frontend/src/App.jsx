@@ -1,7 +1,7 @@
 // Decide qué pantalla mostrar según la sesión: cargando, login o pantalla principal.
 import { useSesion } from "./hooks/useSesion";
 import LoginPage from "./pages/LoginPage";
-import TransmisionesPage from "./pages/TransmisionesPage";
+import MenuPrincipal from "./pages/MenuPrincipal";
 
 function App() {
   const { usuario, revisandoSesion } = useSesion();
@@ -14,7 +14,7 @@ function App() {
     return <LoginPage />;
   }
 
-  return <TransmisionesPage />;
+  return <MenuPrincipal />;
 }
 
 export default App;

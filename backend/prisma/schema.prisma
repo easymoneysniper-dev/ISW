@@ -60,6 +60,7 @@ enum RolUsuario {
   DUENO
   CONTADOR
   JEFE_TECNICO
+  ADMIN_DESARROLLO
 }
 
 model Usuario {

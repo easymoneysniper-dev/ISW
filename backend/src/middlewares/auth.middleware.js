@@ -14,8 +14,22 @@ function requireAuth(req, res, next) {
 // Debe ir después de requireAuth.
 function requireRol(...rolesPermitidos) {
   return (req, res, next) => {
-    if (!rolesPermitidos.includes(req.session.usuario.rol)) {
-      return res.status(403).json({ message: "No tienes permiso para esta acción" });
+    const usuario = req.session?.usuario;
+
+    if (!usuario) {
+      return res.status(401).json({
+        message: "Debes iniciar sesión",
+      });
+    }
+
+    const tienePermiso =
+      usuario.rol === "ADMIN_DESARROLLO" ||
+      rolesPermitidos.includes(usuario.rol);
+
+    if (!tienePermiso) {
+      return res.status(403).json({
+        message: "No tienes permiso para esta acción",
+      });
     }
 
     next();
