@@ -53,7 +53,7 @@ export default function MenuPrincipal() {
         <p>Selecciona un módulo para continuar. Verás las opciones disponibles para tu rol.</p>
         <div className="menu-grid">{disponibles.map((modulo, i) => <a className="menu-card" href={`#/${modulo.id}`} key={modulo.id}>
           <span className="menu-numero">0{i + 1}</span><h2>{modulo.titulo}</h2><p>{modulo.descripcion}</p>
-          <small>{accionesPermitidas(modulo, usuario.rol).length} secciones disponibles · En preparación</small>
+          <small>{accionesPermitidas(modulo, usuario.rol).length} secciones · {accionesPermitidas(modulo, usuario.rol).some((accion) => accion.disponible) ? "Con funciones disponibles" : "En preparación"}</small>
           <span className="menu-link">Entrar al módulo →</span>
         </a>)}</div>
         {["DUENO", "ADMIN_DESARROLLO"].includes(usuario.rol) && <a className="menu-resumen" href="#/finanzas/resumen">Consultar resumen mensual → <small>En preparación</small></a>}

@@ -103,3 +103,41 @@ model RegistroCambio {
   @@index([creadoEn])
   @@map("registros_cambio")
 }
+
+enum EstadoEquipo {
+  DISPONIBLE
+  DANADO
+  EN_REPARACION
+  PERDIDO
+  DADO_DE_BAJA
+}
+
+// Contenedor básico para RF 3.1. La composición y clasificación se amplían en RF 3.2.
+model Kit {
+  id            Int      @id @default(autoincrement())
+  nombre        String   @unique @db.VarChar(150)
+  equipos       Equipo[]
+  creadoEn      DateTime @default(now()) @db.Timestamptz(3)
+  actualizadoEn DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("kits")
+}
+
+model Equipo {
+  id            Int          @id @default(autoincrement())
+  nombre        String       @db.VarChar(150)
+  marca         String?      @db.VarChar(100)
+  modelo        String?      @db.VarChar(100)
+  numeroSerie   String?      @unique @db.VarChar(150)
+  precioCompra  Decimal      @db.Decimal(14, 0)
+  fechaCompra   DateTime     @db.Date
+  estado        EstadoEquipo @default(DISPONIBLE)
+  kitId         Int?
+  kit           Kit?         @relation(fields: [kitId], references: [id], onDelete: Restrict)
+  creadoEn      DateTime     @default(now()) @db.Timestamptz(3)
+  actualizadoEn DateTime     @updatedAt @db.Timestamptz(3)
+
+  @@index([fechaCompra])
+  @@index([kitId])
+  @@map("equipos")
+}
