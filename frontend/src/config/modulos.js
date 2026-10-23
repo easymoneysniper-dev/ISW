@@ -97,6 +97,8 @@ export const modulos = [
       {
         "id": "equipos",
         "titulo": "Equipos",
+        "disponible": true,
+        "descripcion": "Inventario, fichas de equipos y compras mensuales.",
         "roles": [
           "DUENO",
           "JEFE_TECNICO"

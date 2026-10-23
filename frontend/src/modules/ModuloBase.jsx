@@ -17,7 +17,7 @@ export default function ModuloBase({ modulo, accion, rol }) {
     <div className="menu-grid">
       {accionesPermitidas(modulo, rol).map((item) => <a className="menu-card" key={item.id} href={`#/${modulo.id}/${item.id}`}>
         <span className="etiqueta">{item.consulta.includes(rol) ? "Solo consulta" : "Gestión"}</span>
-        <h2>{item.titulo}</h2><p>En preparación</p><span className="menu-link">Abrir sección →</span>
+        <h2>{item.titulo}</h2><p>{item.disponible ? item.descripcion : "En preparación"}</p><span className="menu-link">Abrir sección →</span>
       </a>)}
     </div>
   </section>;
