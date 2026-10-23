@@ -21,6 +21,7 @@
     "express": "^5.2.1",
     "express-session": "^1.19.0",
     "morgan": "^1.12.1",
+    "multer": "^2.5.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
