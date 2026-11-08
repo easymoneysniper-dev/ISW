@@ -1,7 +1,7 @@
 const { Router } = require("express");
 const trabajadorController = require("../controllers/trabajador.controller");
 const { requireAuth, requireRol } = require("../middlewares/auth.middleware");
-const { validate } = require("../middlewares/validate.middleware");
+const validate = require("../middlewares/validate.middleware");
 const {
   crearTrabajadorSchema,
   actualizarTrabajadorSchema,
