@@ -1,35 +1,31 @@
-// Recibe las peticiones de pagos, llama al service y responde.
-// Lo usa routes/pago.routes.js y llama a services/pago.service.js.
-const fs = require("fs");
-const pagoService = require("../services/pago.service");
+// Rutas de pagos del cliente. Se montan en /api/pagos (ver routes/index.js).
+const { Router } = require("express");
+const { requireAuth, requireRol } = require("../middlewares/auth.middleware");
+const validate = require("../middlewares/validate.middleware");
+const { exigirComprobante } = require("../middlewares/comprobante.middleware");
+const pagoController = require("../controllers/pago.controller");
+const { transmisionIdParamSchema, crearPagoSchema } = require("../schemas/pago.schema");
 
-// GET /api/pagos/transmision/:transmisionId
-async function resumenPorTransmision(req, res) {
-  const resumen = await pagoService.resumenPorTransmision(req.params.transmisionId);
+const router = Router();
 
-  if (!resumen) {
-    return res.status(404).json({ message: "Transmisión no encontrada" });
-  }
+// Todas las rutas de este archivo exigen sesión iniciada.
+router.use(requireAuth);
 
-  res.json(resumen);
-}
+// El Dueño consulta; el Contador consulta y registra (RNF-04).
+router.get(
+  "/transmision/:transmisionId",
+  requireRol("DUENO", "CONTADOR"),
+  validate(transmisionIdParamSchema, "params"),
+  pagoController.resumenPorTransmision
+);
 
-// POST /api/pagos (formulario con los datos del pago y el archivo "comprobante")
-async function registrar(req, res) {
-  const usuarioId = req.session.usuario?.id ?? null;
-  const datos = { ...req.body, comprobanteArchivo: req.file.filename };
-  const resultado = await pagoService.registrar(datos, usuarioId);
+// Orden: rol -> comprobante (multer arma req.body) -> validación -> controller.
+router.post(
+  "/",
+  requireRol("CONTADOR"),
+  exigirComprobante,
+  validate(crearPagoSchema),
+  pagoController.registrar
+);
 
-  if (resultado.error) {
-    // El pago no se guardó: se borra el comprobante para no dejar archivos sueltos.
-    await fs.promises.unlink(req.file.path).catch(() => {});
-    return res.status(resultado.status).json({ message: resultado.error });
-  }
-
-  res.status(201).json(resultado.pago);
-}
-
-module.exports = {
-  resumenPorTransmision,
-  registrar,
-};
+module.exports = router;
