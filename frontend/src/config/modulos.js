@@ -150,15 +150,17 @@ export const modulos = [
     "descripcion": "Revisa pagos, gastos y resultados.",
     "responsable": "Alonso",
     "acciones": [
-      {
+        {
         "id": "pagos",
         "titulo": "Pagos del cliente",
+        "disponible": true,
+        "descripcion": "Registra pagos con comprobante y revisa el saldo de cada transmisión.",
         "roles": [
-          "DUENO",
-          "CONTADOR"
+        "DUENO",
+        "CONTADOR"
         ],
         "consulta": [
-          "DUENO"
+        "DUENO"
         ]
       },
       {
