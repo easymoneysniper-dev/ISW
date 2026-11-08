@@ -22,7 +22,10 @@ export async function pedir(ruta, opciones = {}) {
       credentials: "include",
       ...opciones,
       headers: {
-        ...(opciones.body ? { "Content-Type": "application/json" } : {}),
+        // Con FormData (archivos) el navegador pone el Content-Type solo.
+        ...(opciones.body && !(opciones.body instanceof FormData)
+          ? { "Content-Type": "application/json" }
+          : {}),
         ...opciones.headers,
       },
     });
