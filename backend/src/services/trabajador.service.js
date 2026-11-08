@@ -1,65 +1,78 @@
-// Reglas y consultas de los trabajadores y sus roles (RF-10).
-// Lo usa trabajador.controller.js. Habla con la BD a través de config/prisma.js.
+// Lógica de negocio para el registro y gestión de trabajadores (RF-10).
 const prisma = require("../config/prisma");
 
-// Lista todos los trabajadores ordenados por nombre.
-function listar() {
+async function listarTrabajadores({ soloActivos = false } = {}) {
   return prisma.trabajador.findMany({
+    where: soloActivos ? { activo: true } : undefined,
     orderBy: { nombre: "asc" },
   });
 }
 
-// Busca un trabajador por su id. Devuelve null si no existe.
-function obtenerPorId(id) {
+async function obtenerTrabajadorPorId(id) {
   return prisma.trabajador.findUnique({
-    where: { id },
+    where: { id: Number(id) },
   });
 }
 
-// Crea un trabajador nuevo con sus roles y registra el cambio en auditoría (RF-48).
-async function crear(datos, usuarioId = null) {
-  const trabajador = await prisma.trabajador.create({
-    data: datos,
+async function crearTrabajador(datos, usuarioId) {
+  const nuevo = await prisma.trabajador.create({
+    data: {
+      nombre: datos.nombre,
+      telefono: datos.telefono,
+      rut: datos.rut || null,
+      email: datos.email || null,
+      roles: datos.roles,
+      activo: datos.activo ?? true,
+    },
   });
 
   await prisma.registroCambio.create({
     data: {
       usuarioId,
-      modulo: "M2",
+      modulo: "M2_PERSONAL",
       accion: "CREAR",
       entidad: "Trabajador",
-      entidadId: trabajador.id,
-      detalle: `Se registró al trabajador ${trabajador.nombre} con roles: ${trabajador.roles.join(", ")}`,
+      entidadId: nuevo.id,
+      descripcion: `Registró al trabajador ${nuevo.nombre} con roles: ${nuevo.roles.join(", ")}`,
     },
   });
 
-  return trabajador;
+  return nuevo;
 }
 
-// Actualiza datos o roles de un trabajador y registra el cambio (RF-48).
-async function actualizar(id, datos, usuarioId = null) {
-  const trabajador = await prisma.trabajador.update({
-    where: { id },
-    data: datos,
+async function actualizarTrabajador(id, datos, usuarioId) {
+  const existente = await obtenerTrabajadorPorId(id);
+  if (!existente) return null;
+
+  const actualizado = await prisma.trabajador.update({
+    where: { id: Number(id) },
+    data: {
+      ...(datos.nombre !== undefined && { nombre: datos.nombre }),
+      ...(datos.telefono !== undefined && { telefono: datos.telefono }),
+      ...(datos.rut !== undefined && { rut: datos.rut || null }),
+      ...(datos.email !== undefined && { email: datos.email || null }),
+      ...(datos.roles !== undefined && { roles: datos.roles }),
+      ...(datos.activo !== undefined && { activo: datos.activo }),
+    },
   });
 
   await prisma.registroCambio.create({
     data: {
       usuarioId,
-      modulo: "M2",
-      accion: "EDITAR",
+      modulo: "M2_PERSONAL",
+      accion: "ACTUALIZAR",
       entidad: "Trabajador",
-      entidadId: trabajador.id,
-      detalle: `Se actualizó al trabajador ${trabajador.nombre}`,
+      entidadId: actualizado.id,
+      descripcion: `Actualizó ficha del trabajador ${actualizado.nombre} (activo: ${actualizado.activo})`,
     },
   });
 
-  return trabajador;
+  return actualizado;
 }
 
 module.exports = {
-  listar,
-  obtenerPorId,
-  crear,
-  actualizar,
+  listarTrabajadores,
+  obtenerTrabajadorPorId,
+  crearTrabajador,
+  actualizarTrabajador,
 };

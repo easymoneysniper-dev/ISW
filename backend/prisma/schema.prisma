@@ -79,8 +79,8 @@ model Usuario {
 model Trabajador {
   id            Int      @id @default(autoincrement())
   nombre        String   @db.VarChar(150)
-  rut           String   @unique @db.VarChar(20)
-  telefono      String?  @db.VarChar(30)
+  rut           String?  @unique @db.VarChar(20)
+  telefono      String   @db.VarChar(30)
   email         String?  @unique @db.VarChar(254)
   roles         String[]
   activo        Boolean  @default(true)
