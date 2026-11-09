@@ -233,6 +233,7 @@ model Trabajador {
   rut      String  @unique @db.VarChar(12) // en el MER es el identificador; aquí, único
   nombre   String  @db.VarChar(150)
   telefono String  @db.VarChar(30)
+  email    String? @unique @db.VarChar(254) // opcional, dato de contacto (Requisito 2.1)
   activo   Boolean @default(true)
 
   roles            TrabajadorRol[] // relación "Puede cumplir"
