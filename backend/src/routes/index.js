@@ -4,6 +4,7 @@ const { Router } = require("express");
 const healthRoutes = require("./health.routes");
 const authRoutes = require("./auth.routes");
 const transmisionRoutes = require("./transmision.routes");
+const clienteRoutes = require("./cliente.routes");
 const trabajadorRoutes = require("./trabajador.routes");
 const equipoRoutes = require("./equipo.routes");
 const disponibilidadRoutes = require("./disponibilidad.routes");
@@ -17,6 +18,7 @@ const router = Router();
 router.use("/", healthRoutes); // /api/health, /api/db-test
 router.use("/", authRoutes); // /api/login, /api/sesion, /api/logout
 router.use("/transmisiones", transmisionRoutes); // /api/transmisiones
+router.use("/clientes", clienteRoutes); // /api/clientes (RF 1.9–1.11)
 router.use("/trabajadores", trabajadorRoutes); // /api/trabajadores
 router.use("/equipos", equipoRoutes); // RF 3.1
 router.use("/disponibilidades", disponibilidadRoutes);
