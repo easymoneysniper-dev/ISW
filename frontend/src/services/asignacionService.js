@@ -1,4 +1,4 @@
-// Llamadas a la API para asignación de trabajadores y comisiones (RF-12 y RF-13).
+// Llamadas a la API para asignación, comisiones y reemplazos (RF-12, RF-13 y RF-14).
 import { pedir } from "./api";
 
 export function obtenerContextoAsignacion(transmisionId, tiempoTrasladoMin) {
@@ -20,5 +20,12 @@ export function definirComision(asignacionId, porcentajeComision) {
   return pedir(`/asignaciones/${asignacionId}/comision`, {
     method: "PATCH",
     body: JSON.stringify({ porcentajeComision }),
+  });
+}
+
+export function reemplazarAsignacion(asignacionId, datos) {
+  return pedir(`/asignaciones/${asignacionId}/reemplazar`, {
+    method: "POST",
+    body: JSON.stringify(datos),
   });
 }

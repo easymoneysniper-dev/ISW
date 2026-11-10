@@ -3,6 +3,7 @@ import ModuloBase from "../ModuloBase";
 import TrabajadoresPage from "../../pages/personal/TrabajadoresPage";
 import DisponibilidadPage from "../../pages/personal/DisponibilidadPage";
 import AsignacionesPage from "../../pages/personal/AsignacionesPage";
+import ReemplazosAsistenciaPage from "../../pages/personal/ReemplazosAsistenciaPage";
 
 export default function Modulo(props) {
   const [subVista, setSubVista] = useState("trabajadores");
@@ -61,6 +62,10 @@ export default function Modulo(props) {
 
   if (props.accion?.id === "asignaciones") {
     return <AsignacionesPage />;
+  }
+
+  if (props.accion?.id === "asistencia") {
+    return <ReemplazosAsistenciaPage />;
   }
 
   return <ModuloBase {...props} />;

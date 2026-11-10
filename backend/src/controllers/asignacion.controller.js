@@ -1,4 +1,4 @@
-// Controladores HTTP para asignación de trabajadores (RF-12) y comisiones (RF-13).
+// Controladores HTTP para asignación (RF-12), comisiones (RF-13) y reemplazos (RF-14).
 const asignacionService = require("../services/asignacion.service");
 
 async function obtenerPorTransmision(req, res, next) {
@@ -59,8 +59,32 @@ async function actualizarComision(req, res, next) {
   }
 }
 
+async function reemplazar(req, res, next) {
+  try {
+    const nueva = await asignacionService.reemplazarTrabajador(
+      req.params.id,
+      req.body,
+      req.session.usuario.id
+    );
+    res.status(201).json(nueva);
+  } catch (error) {
+    if (error.status === 409 && error.requiereConfirmacion) {
+      return res.status(409).json({
+        message: error.message,
+        requiereConfirmacion: true,
+        advertencias: error.advertencias,
+      });
+    }
+    if (error.status) {
+      return res.status(error.status).json({ message: error.message });
+    }
+    next(error);
+  }
+}
+
 module.exports = {
   obtenerPorTransmision,
   crear,
   actualizarComision,
+  reemplazar,
 };

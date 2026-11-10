@@ -1,4 +1,4 @@
-// Lógica de negocio para asignación de trabajadores (RF-12) y definición de comisiones (RF-13).
+// Lógica de negocio para asignación (RF-12), comisiones (RF-13) y reemplazo de trabajadores (RF-14).
 const prisma = require("../config/prisma");
 
 const TIEMPO_TRASLADO_DEFECTO_MIN = 60;
@@ -14,15 +14,32 @@ const includeAsignacion = {
   roles: {
     include: { rolTecnico: true },
   },
+  reemplazaA: {
+    include: {
+      trabajador: {
+        select: { id: true, nombre: true, rut: true },
+      },
+    },
+  },
+  reemplazadaPor: {
+    include: {
+      trabajador: {
+        select: { id: true, nombre: true, rut: true },
+      },
+    },
+  },
 };
 
 function formatearAsignacion(a, precioCotizado = 0) {
   if (!a) return null;
-  const pct = a.porcentajeComision !== null && a.porcentajeComision !== undefined
-    ? Number(a.porcentajeComision)
-    : null;
+  const pct =
+    a.porcentajeComision !== null && a.porcentajeComision !== undefined
+      ? Number(a.porcentajeComision)
+      : null;
   const precio = Number(precioCotizado || 0);
-  const montoComision = pct !== null ? Math.round((precio * pct) / 100) : 0;
+  // Solo las asignaciones activas ("ASIGNADO") generan comisión activa
+  const montoComision =
+    a.estado === "ASIGNADO" && pct !== null ? Math.round((precio * pct) / 100) : 0;
 
   return {
     id: a.id,
@@ -34,6 +51,11 @@ function formatearAsignacion(a, precioCotizado = 0) {
     fechaLiquidacion: a.fechaLiquidacion,
     porcentajeComision: pct,
     montoComision,
+    reemplazaAId: a.reemplazaAId,
+    reemplazaANombre: a.reemplazaA?.trabajador?.nombre || null,
+    reemplazadaPorNombre: a.reemplazadaPor?.trabajador?.nombre || null,
+    creadoEn: a.creadoEn,
+    actualizadoEn: a.actualizadoEn,
     roles: Array.isArray(a.roles)
       ? a.roles.map((r) => r.rolTecnico?.nombre).filter(Boolean)
       : [],
@@ -69,7 +91,6 @@ async function evaluarConflictosHorario(trabajadorId, transmision, tiempoTraslad
   const inicioEvento = new Date(transmision.inicio);
   const terminoEvento = new Date(transmision.termino);
 
-  // 1. Verificar si tiene al menos un bloque de disponibilidad que cubra todo el horario
   const bloqueCubre = await prisma.disponibilidad.findFirst({
     where: {
       trabajadorId: Number(trabajadorId),
@@ -84,7 +105,6 @@ async function evaluarConflictosHorario(trabajadorId, transmision, tiempoTraslad
     );
   }
 
-  // 2. Verificar otras asignaciones activas del trabajador para choques o traslado
   const otrasAsignaciones = await prisma.asignacion.findMany({
     where: {
       trabajadorId: Number(trabajadorId),
@@ -112,7 +132,6 @@ async function evaluarConflictosHorario(trabajadorId, transmision, tiempoTraslad
     const iniOtra = new Date(otra.transmision.inicio);
     const finOtra = new Date(otra.transmision.termino);
 
-    // Choque directo de horario
     if (inicioEvento < finOtra && terminoEvento > iniOtra) {
       advertencias.push(
         `Choque de horario: ya está asignado a la transmisión "${otra.transmision.nombreEvento}".`
@@ -120,7 +139,6 @@ async function evaluarConflictosHorario(trabajadorId, transmision, tiempoTraslad
       continue;
     }
 
-    // Conflicto de tiempo de traslado entre recintos distintos
     const mismoRecinto =
       (otra.transmision.lugar || "").trim().toLowerCase() ===
       (transmision.lugar || "").trim().toLowerCase();
@@ -151,7 +169,6 @@ async function obtenerContextoTransmision(transmisionId, tiempoTrasladoConfigMin
     include: {
       cliente: true,
       asignaciones: {
-        where: { estado: "ASIGNADO" },
         include: includeAsignacion,
         orderBy: { creadoEn: "asc" },
       },
@@ -165,23 +182,26 @@ async function obtenerContextoTransmision(transmisionId, tiempoTrasladoConfigMin
   }
 
   const precioCotizado = Number(transmision.precioCotizado || 0);
-  const asignacionesFormateadas = transmision.asignaciones.map((a) =>
+  const todasFormateadas = transmision.asignaciones.map((a) =>
     formatearAsignacion(a, precioCotizado)
   );
 
-  // Resumen financiero RF-13
+  const asignacionesActivas = todasFormateadas.filter((a) => a.estado === "ASIGNADO");
+  const historialCambiosAsignacion = todasFormateadas.filter(
+    (a) => a.estado !== "ASIGNADO"
+  );
+
   const sumaPorcentajes = Number(
-    asignacionesFormateadas
+    asignacionesActivas
       .reduce((acc, a) => acc + (a.porcentajeComision || 0), 0)
       .toFixed(2)
   );
-  const totalComisiones = asignacionesFormateadas.reduce(
+  const totalComisiones = asignacionesActivas.reduce(
     (acc, a) => acc + (a.montoComision || 0),
     0
   );
   const montoRestante = precioCotizado - totalComisiones;
 
-  // Evaluar trabajadores activos para destacar a los disponibles en la UI (RF-12)
   const trabajadoresActivos = await prisma.trabajador.findMany({
     where: { activo: true },
     include: {
@@ -211,7 +231,6 @@ async function obtenerContextoTransmision(transmisionId, tiempoTrasladoConfigMin
     })
   );
 
-  // Ordenar destacando primero a los disponibles sin advertencias
   candidatos.sort((a, b) => Number(b.disponible) - Number(a.disponible));
 
   return {
@@ -228,7 +247,8 @@ async function obtenerContextoTransmision(transmisionId, tiempoTrasladoConfigMin
       precioCotizado,
       cliente: transmision.cliente?.nombre || "",
     },
-    asignaciones: asignacionesFormateadas,
+    asignaciones: asignacionesActivas,
+    historialAsignaciones: historialCambiosAsignacion,
     resumenComisiones: {
       precioCotizado,
       sumaPorcentajes,
@@ -271,7 +291,6 @@ async function asignarTrabajador(datos, usuarioId) {
     throw err;
   }
 
-  // Regla obligatoria del profesor: solo permitir asignar a un trabajador activo
   if (!trabajador.activo) {
     const err = new Error(
       "No se puede asignar a un trabajador inactivo. Solo se permite asignar personal activo."
@@ -280,7 +299,6 @@ async function asignarTrabajador(datos, usuarioId) {
     throw err;
   }
 
-  // Verificar que todos los roles asignados estén registrados en su ficha
   const rolesDelTrabajador = trabajador.roles
     .map((r) => r.rolTecnico?.nombre)
     .filter(Boolean);
@@ -296,7 +314,6 @@ async function asignarTrabajador(datos, usuarioId) {
     throw err;
   }
 
-  // Verificar si ya tiene una asignación activa en esta misma transmisión
   const yaAsignado = await prisma.asignacion.findFirst({
     where: {
       transmisionId: transmision.id,
@@ -307,13 +324,12 @@ async function asignarTrabajador(datos, usuarioId) {
 
   if (yaAsignado) {
     const err = new Error(
-      "Este trabajador ya se encuentra asignado a esta transmisión. Puedes editar sus roles o comisión."
+      "Este trabajador ya se encuentra asignado a esta transmisión."
     );
     err.status = 400;
     throw err;
   }
 
-  // Evaluar disponibilidad, choques de horario y traslado
   const evaluacion = await evaluarConflictosHorario(
     trabajador.id,
     transmision,
@@ -405,8 +421,156 @@ async function definirPorcentajeComision(asignacionId, porcentajeComision, usuar
   return formatearAsignacion(actualizada, asignacion.transmision.precioCotizado);
 }
 
+// RF-14: Reemplazar un trabajador asignado por otro trabajador activo, conservando historial
+async function reemplazarTrabajador(asignacionOriginalId, datos, usuarioId) {
+  const original = await prisma.asignacion.findUnique({
+    where: { id: Number(asignacionOriginalId) },
+    include: {
+      transmision: true,
+      trabajador: true,
+      roles: { include: { rolTecnico: true } },
+    },
+  });
+
+  if (!original) {
+    const err = new Error("La asignación que intentas reemplazar no existe");
+    err.status = 404;
+    throw err;
+  }
+
+  if (original.estado !== "ASIGNADO") {
+    const err = new Error(
+      `Solo se puede reemplazar una asignación activa (estado actual: ${original.estado})`
+    );
+    err.status = 400;
+    throw err;
+  }
+
+  if (Number(datos.nuevoTrabajadorId) === original.trabajadorId) {
+    const err = new Error("El trabajador reemplazante debe ser distinto al trabajador original");
+    err.status = 400;
+    throw err;
+  }
+
+  const nuevoTrabajador = await prisma.trabajador.findUnique({
+    where: { id: Number(datos.nuevoTrabajadorId) },
+    include: {
+      roles: { include: { rolTecnico: true } },
+    },
+  });
+
+  if (!nuevoTrabajador) {
+    const err = new Error("El trabajador reemplazante seleccionado no existe");
+    err.status = 404;
+    throw err;
+  }
+
+  if (!nuevoTrabajador.activo) {
+    const err = new Error(
+      "No se puede asignar como reemplazo a un trabajador inactivo."
+    );
+    err.status = 400;
+    throw err;
+  }
+
+  // Verificar que el reemplazante no esté ya asignado activamente en esta misma transmisión
+  const yaAsignadoEnEvento = await prisma.asignacion.findFirst({
+    where: {
+      transmisionId: original.transmisionId,
+      trabajadorId: nuevoTrabajador.id,
+      estado: "ASIGNADO",
+    },
+  });
+
+  if (yaAsignadoEnEvento) {
+    const err = new Error(
+      `El trabajador ${nuevoTrabajador.nombre} ya tiene una asignación activa en esta transmisión.`
+    );
+    err.status = 400;
+    throw err;
+  }
+
+  // Si no se especificaron roles nuevos, hereda los roles que tenía la asignación original
+  const rolesOriginales = original.roles.map((r) => r.rolTecnico?.nombre).filter(Boolean);
+  const rolesARemplazar =
+    Array.isArray(datos.roles) && datos.roles.length > 0 ? datos.roles : rolesOriginales;
+
+  const rolesFichaNuevo = nuevoTrabajador.roles
+    .map((r) => r.rolTecnico?.nombre)
+    .filter(Boolean);
+  const rolesNoSoportados = rolesARemplazar.filter((r) => !rolesFichaNuevo.includes(r));
+
+  if (rolesNoSoportados.length > 0) {
+    const err = new Error(
+      `El reemplazante ${nuevoTrabajador.nombre} no tiene registrados en su ficha los roles: ${rolesNoSoportados.join(", ")}`
+    );
+    err.status = 400;
+    throw err;
+  }
+
+  // Evaluar disponibilidad, choques y traslado del reemplazante
+  const evaluacion = await evaluarConflictosHorario(
+    nuevoTrabajador.id,
+    original.transmision,
+    datos.tiempoTrasladoConfigMin
+  );
+
+  if (evaluacion.conflictos.length > 0 && !datos.aceptarAdvertencia) {
+    const err = new Error(evaluacion.conflictos.join(" "));
+    err.status = 409;
+    err.requiereConfirmacion = true;
+    err.advertencias = evaluacion.conflictos;
+    throw err;
+  }
+
+  const porcentajeFinal =
+    datos.porcentajeComision !== undefined && datos.porcentajeComision !== null
+      ? Number(datos.porcentajeComision)
+      : original.porcentajeComision !== null
+      ? Number(original.porcentajeComision)
+      : null;
+
+  // Transacción atómica: marcar original como REEMPLAZADO y crear la nueva asignación con reemplazaAId
+  const [, nuevaAsignacion] = await prisma.$transaction([
+    prisma.asignacion.update({
+      where: { id: original.id },
+      data: {
+        estado: "REEMPLAZADO",
+        motivo: datos.motivo.trim(),
+      },
+    }),
+    prisma.asignacion.create({
+      data: {
+        transmisionId: original.transmisionId,
+        trabajadorId: nuevoTrabajador.id,
+        estado: "ASIGNADO",
+        porcentajeComision: porcentajeFinal,
+        reemplazaAId: original.id,
+        roles: {
+          create: construirRelacionRoles(rolesARemplazar),
+        },
+      },
+      include: includeAsignacion,
+    }),
+  ]);
+
+  await prisma.registroCambio.create({
+    data: {
+      usuarioId: usuarioId || null,
+      modulo: "Personal",
+      accion: "MODIFICAR",
+      entidad: "Asignacion",
+      entidadId: nuevaAsignacion.id,
+      detalle: `Reemplazó a ${original.trabajador.nombre} por ${nuevoTrabajador.nombre} en "${original.transmision.nombreEvento}". Motivo: ${datos.motivo.trim()}`,
+    },
+  });
+
+  return formatearAsignacion(nuevaAsignacion, original.transmision.precioCotizado);
+}
+
 module.exports = {
   obtenerContextoTransmision,
   asignarTrabajador,
   definirPorcentajeComision,
+  reemplazarTrabajador,
 };
