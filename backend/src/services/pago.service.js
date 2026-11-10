@@ -3,20 +3,7 @@
 const prisma = require("../config/prisma");
 
 const UNA_SEMANA_MS = 7 * 24 * 60 * 60 * 1000;
-const CINCO_HORAS_MS = 5 * 60 * 60 * 1000;
 const ESTADOS_SIN_PAGO = ["COTIZADA", "RECHAZADA", "CANCELADA"];
-
-// TEMPORAL: reemplazar por la función de M3 que diga cuántos kits usa la transmisión
-// (acordarla en la reunión, por ejemplo kitService.cantidadKits(id)).
-async function cantidadKitsTemporal(transmisionId) {
-  return 0;
-}
-
-// Adelanto del 50 % si dura 5 h o más, usa 3 kits o más, o sale a regiones.
-function requiereAdelanto(transmision, cantidadKits) {
-  const duracion = transmision.termino - transmision.inicio;
-  return duracion >= CINCO_HORAS_MS || cantidadKits >= 3 || transmision.salidaRegiones;
-}
 
 // El estado se calcula con el dinero recibido, no se guarda.
 function calcularEstadoPago({ precio, totalPagado, adelantoMinimo, termino, ahora = new Date() }) {
@@ -38,7 +25,6 @@ async function resumenPorTransmision(transmisionId) {
   const precio = Number(transmision.precioCotizado);
   const totalPagado = transmision.pagos.reduce((suma, pago) => suma + Number(pago.monto), 0);
   const adelantoMinimo = Math.ceil(precio * 0.5);
-  const cantidadKits = await cantidadKitsTemporal(transmisionId);
 
   return {
     transmisionId,
@@ -46,7 +32,8 @@ async function resumenPorTransmision(transmisionId) {
     precioCotizado: precio,
     totalPagado,
     saldoPendiente: Math.max(precio - totalPagado, 0),
-    requiereAdelanto: requiereAdelanto(transmision, cantidadKits),
+    // Lo calcula M1 al cotizar (requisito 1.2) y queda guardado en la transmisión.
+    requiereAdelanto: transmision.requiereAdelanto,
     adelantoMinimo,
     estadoPago: calcularEstadoPago({
       precio,
