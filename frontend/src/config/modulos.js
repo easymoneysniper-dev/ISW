@@ -166,6 +166,9 @@ export const modulos = [
       {
         "id": "gastos",
         "titulo": "Gastos y costos fijos",
+        "disponible": true,
+        "descripcion": "Registra gastos con comprobante, completa la rendición y anota los costos fijos del mes.",
+
         "roles": [
           "CONTADOR"
         ],
