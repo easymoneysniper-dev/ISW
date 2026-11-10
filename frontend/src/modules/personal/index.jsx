@@ -2,6 +2,7 @@ import { useState } from "react";
 import ModuloBase from "../ModuloBase";
 import TrabajadoresPage from "../../pages/personal/TrabajadoresPage";
 import DisponibilidadPage from "../../pages/personal/DisponibilidadPage";
+import AsignacionesPage from "../../pages/personal/AsignacionesPage";
 
 export default function Modulo(props) {
   const [subVista, setSubVista] = useState("trabajadores");
@@ -56,6 +57,10 @@ export default function Modulo(props) {
         {subVista === "trabajadores" ? <TrabajadoresPage /> : <DisponibilidadPage />}
       </div>
     );
+  }
+
+  if (props.accion?.id === "asignaciones") {
+    return <AsignacionesPage />;
   }
 
   return <ModuloBase {...props} />;

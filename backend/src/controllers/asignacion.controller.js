@@ -1,0 +1,66 @@
+// Controladores HTTP para asignación de trabajadores (RF-12) y comisiones (RF-13).
+const asignacionService = require("../services/asignacion.service");
+
+async function obtenerPorTransmision(req, res, next) {
+  try {
+    const { transmisionId } = req.params;
+    const { tiempoTrasladoMin } = req.query;
+    const datos = await asignacionService.obtenerContextoTransmision(
+      transmisionId,
+      tiempoTrasladoMin
+    );
+    res.json(datos);
+  } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({ message: error.message });
+    }
+    next(error);
+  }
+}
+
+async function crear(req, res, next) {
+  try {
+    const nueva = await asignacionService.asignarTrabajador(
+      req.body,
+      req.session.usuario.id
+    );
+    res.status(201).json(nueva);
+  } catch (error) {
+    if (error.status === 409 && error.requiereConfirmacion) {
+      return res.status(409).json({
+        message: error.message,
+        requiereConfirmacion: true,
+        advertencias: error.advertencias,
+      });
+    }
+    if (error.status) {
+      return res.status(error.status).json({ message: error.message });
+    }
+    next(error);
+  }
+}
+
+async function actualizarComision(req, res, next) {
+  try {
+    const actualizada = await asignacionService.definirPorcentajeComision(
+      req.params.id,
+      req.body.porcentajeComision,
+      req.session.usuario.id
+    );
+    if (!actualizada) {
+      return res.status(404).json({ message: "Asignación no encontrada" });
+    }
+    res.json(actualizada);
+  } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({ message: error.message });
+    }
+    next(error);
+  }
+}
+
+module.exports = {
+  obtenerPorTransmision,
+  crear,
+  actualizarComision,
+};
