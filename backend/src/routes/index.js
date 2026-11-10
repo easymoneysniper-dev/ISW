@@ -7,6 +7,8 @@ const transmisionRoutes = require("./transmision.routes");
 const trabajadorRoutes = require("./trabajador.routes");
 const equipoRoutes = require("./equipo.routes");
 const pagoRoutes = require("./pago.routes");
+const gastoRoutes = require("./gasto.routes");
+
 
 const router = Router();
 
@@ -16,5 +18,7 @@ router.use("/transmisiones", transmisionRoutes); // /api/transmisiones
 router.use("/trabajadores", trabajadorRoutes); // /api/trabajadores
 router.use("/equipos", equipoRoutes); // RF 3.1
 router.use("/pagos", pagoRoutes); // /api/pagos
+router.use("/gastos", gastoRoutes); // /api/gastos
+
 
 module.exports = router;
