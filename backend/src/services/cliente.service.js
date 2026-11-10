@@ -2,21 +2,20 @@
 // Lo usa controllers/cliente.controller.js. Habla con la BD a través de config/prisma.js.
 // Si una regla no se cumple, devuelve { error, status } en vez de lanzar un error.
 const prisma = require("../config/prisma");
+const auditoria = require("./auditoria.service");
 
 const conTransmisiones = { _count: { select: { transmisiones: true } } };
 const VERBOS = { CREAR: "Registró", EDITAR: "Modificó", ELIMINAR: "Eliminó" };
 
 // Deja registro de quién hizo el cambio (Requisito 2.3).
 function auditar(tx, usuarioId, accion, cliente) {
-  return tx.registroCambio.create({
-    data: {
-      usuarioId,
-      modulo: "M1",
-      accion,
-      entidad: "Cliente",
-      entidadId: cliente.id,
-      detalle: `${VERBOS[accion]} al cliente ${cliente.nombre}`,
-    },
+  return auditoria.registrar(tx, {
+    usuarioId,
+    modulo: "M1",
+    accion,
+    entidad: "Cliente",
+    entidadId: cliente.id,
+    detalle: `${VERBOS[accion]} al cliente ${cliente.nombre}`,
   });
 }
 
