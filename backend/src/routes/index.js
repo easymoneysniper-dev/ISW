@@ -9,6 +9,8 @@ const equipoRoutes = require("./equipo.routes");
 const disponibilidadRoutes = require("./disponibilidad.routes");
 const asignacionRoutes = require("./asignacion.routes");
 const pagoRoutes = require("./pago.routes");
+const gastoRoutes = require("./gasto.routes");
+
 
 const router = Router();
 
@@ -20,5 +22,7 @@ router.use("/equipos", equipoRoutes); // RF 3.1
 router.use("/disponibilidades", disponibilidadRoutes);
 router.use("/asignaciones", asignacionRoutes);
 router.use("/pagos", pagoRoutes); // /api/pagos
+router.use("/gastos", gastoRoutes); // /api/gastos
+
 
 module.exports = router;

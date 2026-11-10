@@ -36,11 +36,17 @@ function exigirComprobante(req, res, next) {
       return res.status(400).json({ message: "El comprobante no puede pesar más de 5 MB" });
     }
 
-    if (error) return next(error);
-
-    if (!req.file) {
+        if (!req.file) {
       return res.status(400).json({ message: "Debes adjuntar el comprobante (JPG, PNG o PDF)" });
     }
+
+    // Si después algo falla (validación, reglas del service o error 500), se borra el archivo
+    // para no dejar comprobantes de registros que no se guardaron.
+    res.on("finish", () => {
+      if (res.statusCode >= 400) {
+        fs.promises.unlink(req.file.path).catch(() => {});
+      }
+    });
 
     next();
   });
