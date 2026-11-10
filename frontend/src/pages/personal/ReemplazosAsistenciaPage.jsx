@@ -1,10 +1,13 @@
-// Pantalla de reemplazo de trabajadores asignados (RF-14) con conservación de historial.
+// Pantalla unificada de Reemplazos (RF-14), Retiros (RF-15) y Asistencia / Cámaras (RF-16).
 import { useEffect, useState } from "react";
 import { useSesion } from "../../hooks/useSesion";
 import { listarTransmisiones } from "../../services/transmisionService";
 import {
   obtenerContextoAsignacion,
   reemplazarAsignacion,
+  retirarAsignacion,
+  registrarAsistencia,
+  registrarCamarasUtilizadas,
 } from "../../services/asignacionService";
 
 const ETIQUETAS_ROL = {
@@ -13,6 +16,12 @@ const ETIQUETAS_ROL = {
   OPERADOR_SWITCH: "Operador de switch",
   INSTALACION_TECNICA: "Instalación técnica",
   RELATOR: "Relator",
+};
+
+const ETIQUETAS_ASISTENCIA = {
+  PENDIENTE: "Pendiente",
+  ASISTIO: "Asistió",
+  NO_ASISTIO: "No asistió",
 };
 
 function formatearFechaHora(iso) {
@@ -35,12 +44,20 @@ function ReemplazosAsistenciaPage() {
   const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState("");
 
-  // Estado del formulario de reemplazo (RF-14)
+  // RF-16: Cámaras efectivamente utilizadas
+  const [camarasInput, setCamarasInput] = useState("");
+
+  // RF-14: Estado del formulario de reemplazo
   const [asignacionAReemplazar, setAsignacionAReemplazar] = useState(null);
   const [nuevoTrabajadorId, setNuevoTrabajadorId] = useState("");
   const [rolesReemplazo, setRolesReemplazo] = useState([]);
   const [porcentajeReemplazo, setPorcentajeReemplazo] = useState("");
-  const [motivo, setMotivo] = useState("");
+  const [motivoReemplazo, setMotivoReemplazo] = useState("");
+
+  // RF-15: Estado del formulario de retiro sin reemplazo
+  const [asignacionARetirar, setAsignacionARetirar] = useState(null);
+  const [motivoRetiro, setMotivoRetiro] = useState("");
+
   const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
@@ -51,7 +68,8 @@ function ReemplazosAsistenciaPage() {
         const arr = Array.isArray(lista) ? lista : [];
         setTransmisiones(arr);
         const primera =
-          arr.find((t) => t.estado === "CONFIRMADA") || arr[0];
+          arr.find((t) => t.estado === "CONFIRMADA" || t.estado === "REALIZADA") ||
+          arr[0];
         if (primera) {
           setTransmisionId(String(primera.id));
         }
@@ -70,6 +88,12 @@ function ReemplazosAsistenciaPage() {
       setError("");
       const datos = await obtenerContextoAsignacion(idEvento);
       setContexto(datos);
+      setCamarasInput(
+        datos.transmision?.camarasUtilizadas !== null &&
+          datos.transmision?.camarasUtilizadas !== undefined
+          ? String(datos.transmision.camarasUtilizadas)
+          : String(datos.transmision?.cantidadCamaras ?? "")
+      );
     } catch (err) {
       setError(err.message || "Error al cargar asignaciones de la transmisión");
     }
@@ -78,13 +102,23 @@ function ReemplazosAsistenciaPage() {
   useEffect(() => {
     if (transmisionId) {
       cargarDetalle(transmisionId);
-      cancelarReemplazo();
+      cerrarPaneles();
     }
   }, [transmisionId]);
 
-  function iniciarReemplazo(asignacion) {
-    setAsignacionAReemplazar(asignacion);
+  function cerrarPaneles() {
+    setAsignacionAReemplazar(null);
     setNuevoTrabajadorId("");
+    setRolesReemplazo([]);
+    setPorcentajeReemplazo("");
+    setMotivoReemplazo("");
+    setAsignacionARetirar(null);
+    setMotivoRetiro("");
+  }
+
+  function iniciarReemplazo(asignacion) {
+    cerrarPaneles();
+    setAsignacionAReemplazar(asignacion);
     setRolesReemplazo(asignacion.roles || []);
     setPorcentajeReemplazo(
       asignacion.porcentajeComision !== null &&
@@ -92,17 +126,16 @@ function ReemplazosAsistenciaPage() {
         ? String(asignacion.porcentajeComision)
         : ""
     );
-    setMotivo("");
     setError("");
     setMensaje("");
   }
 
-  function cancelarReemplazo() {
-    setAsignacionAReemplazar(null);
-    setNuevoTrabajadorId("");
-    setRolesReemplazo([]);
-    setPorcentajeReemplazo("");
-    setMotivo("");
+  function iniciarRetiro(asignacion) {
+    cerrarPaneles();
+    setAsignacionARetirar(asignacion);
+    setMotivoRetiro("");
+    setError("");
+    setMensaje("");
   }
 
   const candidatoSeleccionado = contexto?.candidatos?.find(
@@ -124,7 +157,7 @@ function ReemplazosAsistenciaPage() {
       return;
     }
 
-    if (!motivo.trim() || motivo.trim().length < 3) {
+    if (!motivoReemplazo.trim() || motivoReemplazo.trim().length < 3) {
       setError("Debes ingresar el motivo del reemplazo (mínimo 3 caracteres).");
       return;
     }
@@ -138,7 +171,7 @@ function ReemplazosAsistenciaPage() {
       setGuardando(true);
       await reemplazarAsignacion(asignacionAReemplazar.id, {
         nuevoTrabajadorId: Number(nuevoTrabajadorId),
-        motivo: motivo.trim(),
+        motivo: motivoReemplazo.trim(),
         roles: rolesReemplazo,
         porcentajeComision:
           porcentajeReemplazo !== "" ? Number(porcentajeReemplazo) : null,
@@ -146,9 +179,9 @@ function ReemplazosAsistenciaPage() {
       });
 
       setMensaje(
-        `Se registró el reemplazo de ${asignacionAReemplazar.trabajador?.nombre} correctamente, conservando el historial.`
+        `Reemplazo de ${asignacionAReemplazar.trabajador?.nombre} registrado correctamente.`
       );
-      cancelarReemplazo();
+      cerrarPaneles();
       await cargarDetalle(transmisionId);
     } catch (err) {
       setError(err.message || "No se pudo realizar el reemplazo");
@@ -157,16 +190,75 @@ function ReemplazosAsistenciaPage() {
     }
   }
 
-  const historialReemplazos =
-    contexto?.historialAsignaciones?.filter((h) => h.estado === "REEMPLAZADO") || [];
+  async function confirmarRetiro(e) {
+    e.preventDefault();
+    setError("");
+    setMensaje("");
+
+    if (!asignacionARetirar) return;
+    if (!motivoRetiro.trim() || motivoRetiro.trim().length < 3) {
+      setError("Debes ingresar el motivo del retiro (mínimo 3 caracteres).");
+      return;
+    }
+
+    try {
+      setGuardando(true);
+      await retirarAsignacion(asignacionARetirar.id, motivoRetiro.trim());
+      setMensaje(
+        `Se retiró la asignación de ${asignacionARetirar.trabajador?.nombre} conservando el historial.`
+      );
+      cerrarPaneles();
+      await cargarDetalle(transmisionId);
+    } catch (err) {
+      setError(err.message || "No se pudo retirar la asignación");
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  async function cambiarAsistenciaFila(asignacionId, nuevaAsistencia) {
+    setError("");
+    setMensaje("");
+    try {
+      await registrarAsistencia(asignacionId, nuevaAsistencia);
+      setMensaje(
+        `Asistencia actualizada a "${ETIQUETAS_ASISTENCIA[nuevaAsistencia]}".`
+      );
+      await cargarDetalle(transmisionId);
+    } catch (err) {
+      setError(err.message || "No se pudo actualizar la asistencia");
+    }
+  }
+
+  async function guardarCamarasEvento(e) {
+    e.preventDefault();
+    setError("");
+    setMensaje("");
+
+    const valor = camarasInput === "" ? null : Number(camarasInput);
+    if (valor !== null && (Number.isNaN(valor) || valor < 0)) {
+      setError("Ingresa un número válido de cámaras utilizadas.");
+      return;
+    }
+
+    try {
+      await registrarCamarasUtilizadas(transmisionId, valor);
+      setMensaje("Cantidad de cámaras utilizadas guardada correctamente.");
+      await cargarDetalle(transmisionId);
+    } catch (err) {
+      setError(err.message || "No se pudo actualizar la cantidad de cámaras");
+    }
+  }
+
+  const historialBajas = contexto?.historialAsignaciones || [];
 
   return (
-    <div style={{ maxWidth: "1020px", margin: "0 auto", padding: "1.5rem" }}>
+    <div style={{ maxWidth: "1040px", margin: "0 auto", padding: "1.5rem" }}>
       <h1 style={{ color: "#1e3a8a", marginBottom: "0.5rem" }}>
-        Reemplazo de Trabajadores en Transmisiones (RF-14)
+        Reemplazos, Retiros y Registro de Asistencia
       </h1>
       <p style={{ color: "#475569", marginBottom: "1.5rem" }}>
-        Sustituye a un trabajador que no podrá participar por otro trabajador activo, registrando el motivo y conservando la trazabilidad histórica.
+        Gestión de reemplazos (RF-14), retiro de asignaciones sin reemplazo (RF-15) y control de asistencia y cámaras utilizadas (RF-16).
       </p>
 
       {error && (
@@ -181,6 +273,7 @@ function ReemplazosAsistenciaPage() {
         </div>
       )}
 
+      {/* Selector de transmisión y registro de cámaras utilizadas (RF-16) */}
       <div
         style={{
           backgroundColor: "#eff6ff",
@@ -188,23 +281,64 @@ function ReemplazosAsistenciaPage() {
           borderRadius: "8px",
           padding: "1rem",
           marginBottom: "1.5rem",
+          display: "grid",
+          gridTemplateColumns: "2fr 1fr",
+          gap: "1rem",
+          alignItems: "end",
         }}
       >
-        <label style={{ display: "block", fontWeight: "600", color: "#1e3a8a", marginBottom: "0.35rem" }}>
-          Seleccionar transmisión:
-        </label>
-        <select
-          value={transmisionId}
-          onChange={(e) => setTransmisionId(e.target.value)}
-          style={{ width: "100%", padding: "0.5rem", borderRadius: "4px", border: "1px solid #93c5fd" }}
-        >
-          <option value="">Selecciona una transmisión...</option>
-          {transmisiones.map((t) => (
-            <option key={t.id} value={t.id}>
-              [{t.estado}] {t.nombreEvento} — {formatearFechaHora(t.inicio)} ({t.lugar})
-            </option>
-          ))}
-        </select>
+        <div>
+          <label style={{ display: "block", fontWeight: "600", color: "#1e3a8a", marginBottom: "0.35rem" }}>
+            Seleccionar transmisión:
+          </label>
+          <select
+            value={transmisionId}
+            onChange={(e) => setTransmisionId(e.target.value)}
+            style={{ width: "100%", padding: "0.5rem", borderRadius: "4px", border: "1px solid #93c5fd" }}
+          >
+            <option value="">Selecciona una transmisión...</option>
+            {transmisiones.map((t) => (
+              <option key={t.id} value={t.id}>
+                [{t.estado}] {t.nombreEvento} — {formatearFechaHora(t.inicio)} ({t.lugar})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {contexto && (
+          <form onSubmit={guardarCamarasEvento}>
+            <label style={{ display: "block", fontWeight: "600", color: "#1e3a8a", marginBottom: "0.35rem" }}>
+              Cámaras utilizadas (Cotizadas: {contexto.transmision.cantidadCamaras}):
+            </label>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <input
+                type="number"
+                min="0"
+                max={contexto.transmision.cantidadCamaras}
+                disabled={!puedeEditar}
+                value={camarasInput}
+                onChange={(e) => setCamarasInput(e.target.value)}
+                style={{ width: "100%", padding: "0.5rem", borderRadius: "4px", border: "1px solid #93c5fd" }}
+              />
+              {puedeEditar && (
+                <button
+                  type="submit"
+                  style={{
+                    backgroundColor: "#2563eb",
+                    color: "#ffffff",
+                    border: "none",
+                    padding: "0.5rem 0.85rem",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontWeight: "600",
+                  }}
+                >
+                  Guardar
+                </button>
+              )}
+            </div>
+          </form>
+        )}
       </div>
 
       {cargando ? (
@@ -213,7 +347,7 @@ function ReemplazosAsistenciaPage() {
         <p>Selecciona una transmisión.</p>
       ) : (
         <>
-          {/* Modal / Panel de Reemplazo cuando se selecciona un trabajador */}
+          {/* Panel de Reemplazo (RF-14) */}
           {asignacionAReemplazar && puedeEditar && (
             <div
               style={{
@@ -225,8 +359,7 @@ function ReemplazosAsistenciaPage() {
               }}
             >
               <h2 style={{ color: "#1e3a8a", fontSize: "1.15rem", marginTop: 0 }}>
-                Reemplazar a: {asignacionAReemplazar.trabajador?.nombre} (Roles actuales:{" "}
-                {asignacionAReemplazar.roles.map((r) => ETIQUETAS_ROL[r] || r).join(", ")})
+                Reemplazar a: {asignacionAReemplazar.trabajador?.nombre} (RF-14)
               </h2>
 
               <div
@@ -248,7 +381,6 @@ function ReemplazosAsistenciaPage() {
                       setNuevoTrabajadorId(idSel);
                       const cand = contexto.candidatos.find((c) => String(c.id) === String(idSel));
                       if (cand) {
-                        // Preseleccionar los roles de la asignación original que el reemplazante tenga habilitados
                         const comunes = asignacionAReemplazar.roles.filter((r) =>
                           cand.roles.includes(r)
                         );
@@ -280,7 +412,7 @@ function ReemplazosAsistenciaPage() {
                     max="100"
                     value={porcentajeReemplazo}
                     onChange={(e) => setPorcentajeReemplazo(e.target.value)}
-                    placeholder="Hereda % anterior si se deja igual"
+                    placeholder="Hereda % anterior"
                     style={{ width: "100%", padding: "0.5rem", borderRadius: "4px", border: "1px solid #94a3b8" }}
                   />
                 </div>
@@ -347,9 +479,9 @@ function ReemplazosAsistenciaPage() {
                 <input
                   type="text"
                   required
-                  value={motivo}
-                  onChange={(e) => setMotivo(e.target.value)}
-                  placeholder="Ej: Avisó imprevisto médico / choque de horario de última hora"
+                  value={motivoReemplazo}
+                  onChange={(e) => setMotivoReemplazo(e.target.value)}
+                  placeholder="Ej: Avisó imprevisto médico / problema de transporte"
                   style={{ width: "100%", padding: "0.5rem", borderRadius: "4px", border: "1px solid #94a3b8" }}
                 />
               </div>
@@ -393,7 +525,7 @@ function ReemplazosAsistenciaPage() {
 
                 <button
                   type="button"
-                  onClick={cancelarReemplazo}
+                  onClick={cerrarPaneles}
                   style={{
                     backgroundColor: "#e2e8f0",
                     color: "#1e293b",
@@ -409,9 +541,76 @@ function ReemplazosAsistenciaPage() {
             </div>
           )}
 
-          {/* Tabla de personal actualmente asignado */}
+          {/* Panel de Retiro sin reemplazo (RF-15) */}
+          {asignacionARetirar && puedeEditar && (
+            <form
+              onSubmit={confirmarRetiro}
+              style={{
+                backgroundColor: "#fff1f2",
+                border: "2px solid #e11d48",
+                borderRadius: "8px",
+                padding: "1.25rem",
+                marginBottom: "2rem",
+              }}
+            >
+              <h2 style={{ color: "#9f1239", fontSize: "1.15rem", marginTop: 0 }}>
+                Retirar asignación de: {asignacionARetirar.trabajador?.nombre} (RF-15)
+              </h2>
+              <p style={{ color: "#881337", marginTop: 0, fontSize: "0.92rem" }}>
+                El trabajador dejará de estar activo en esta transmisión sin asignar un reemplazante, pero se conservará el registro en el historial.
+              </p>
+
+              <div style={{ marginBottom: "1rem" }}>
+                <label style={{ display: "block", fontWeight: "600", color: "#881337", marginBottom: "0.25rem" }}>
+                  Motivo del retiro *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={motivoRetiro}
+                  onChange={(e) => setMotivoRetiro(e.target.value)}
+                  placeholder="Ej: Reducción de cámaras solicitada por el cliente / baja de última hora"
+                  style={{ width: "100%", padding: "0.5rem", borderRadius: "4px", border: "1px solid #fda4af" }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: "0.75rem" }}>
+                <button
+                  type="submit"
+                  disabled={guardando}
+                  style={{
+                    backgroundColor: "#e11d48",
+                    color: "#ffffff",
+                    border: "none",
+                    padding: "0.5rem 1.25rem",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontWeight: "600",
+                  }}
+                >
+                  {guardando ? "Retirando..." : "Confirmar retiro de asignación"}
+                </button>
+                <button
+                  type="button"
+                  onClick={cerrarPaneles}
+                  style={{
+                    backgroundColor: "#e2e8f0",
+                    color: "#1e293b",
+                    border: "none",
+                    padding: "0.5rem 1rem",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Tabla principal: Personal activo, Asistencia (RF-16), Reemplazar (RF-14) y Retirar (RF-15) */}
           <h2 style={{ color: "#1e3a8a", fontSize: "1.15rem" }}>
-            Personal activo asignado a la transmisión ({contexto.asignaciones.length})
+            Personal activo y control de asistencia ({contexto.asignaciones.length})
           </h2>
 
           {contexto.asignaciones.length === 0 ? (
@@ -430,10 +629,12 @@ function ReemplazosAsistenciaPage() {
                 <tr style={{ backgroundColor: "#eff6ff", color: "#1e3a8a", textAlign: "left" }}>
                   <th style={{ padding: "0.75rem", borderBottom: "1px solid #cbd5e1" }}>Trabajador</th>
                   <th style={{ padding: "0.75rem", borderBottom: "1px solid #cbd5e1" }}>Roles</th>
-                  <th style={{ padding: "0.75rem", borderBottom: "1px solid #cbd5e1" }}>% Comisión</th>
                   <th style={{ padding: "0.75rem", borderBottom: "1px solid #cbd5e1" }}>Trazabilidad</th>
+                  <th style={{ padding: "0.75rem", borderBottom: "1px solid #cbd5e1" }}>Asistencia (RF-16)</th>
                   {puedeEditar && (
-                    <th style={{ padding: "0.75rem", borderBottom: "1px solid #cbd5e1" }}>Acción</th>
+                    <th style={{ padding: "0.75rem", borderBottom: "1px solid #cbd5e1" }}>
+                      Acciones (RF-14 / RF-15)
+                    </th>
                   )}
                 </tr>
               </thead>
@@ -446,16 +647,45 @@ function ReemplazosAsistenciaPage() {
                     <td style={{ padding: "0.75rem" }}>
                       {a.roles.map((r) => ETIQUETAS_ROL[r] || r).join(", ")}
                     </td>
-                    <td style={{ padding: "0.75rem" }}>
-                      {a.porcentajeComision ? `${a.porcentajeComision}%` : "Sin definir"}
-                    </td>
                     <td style={{ padding: "0.75rem", fontSize: "0.9rem", color: "#1e40af" }}>
                       {a.reemplazaANombre
                         ? `Reemplazó a ${a.reemplazaANombre}`
                         : "Asignación original"}
                     </td>
+                    <td style={{ padding: "0.75rem" }}>
+                      {puedeEditar ? (
+                        <select
+                          value={a.asistencia}
+                          onChange={(e) => cambiarAsistenciaFila(a.id, e.target.value)}
+                          style={{
+                            padding: "0.35rem 0.5rem",
+                            borderRadius: "4px",
+                            border: "1px solid #93c5fd",
+                            fontWeight: "600",
+                            backgroundColor:
+                              a.asistencia === "ASISTIO"
+                                ? "#dcfce7"
+                                : a.asistencia === "NO_ASISTIO"
+                                ? "#fee2e2"
+                                : "#f8fafc",
+                            color:
+                              a.asistencia === "ASISTIO"
+                                ? "#166534"
+                                : a.asistencia === "NO_ASISTIO"
+                                ? "#991b1b"
+                                : "#334155",
+                          }}
+                        >
+                          <option value="PENDIENTE">Pendiente</option>
+                          <option value="ASISTIO">Asistió</option>
+                          <option value="NO_ASISTIO">No asistió</option>
+                        </select>
+                      ) : (
+                        <span>{ETIQUETAS_ASISTENCIA[a.asistencia] || a.asistencia}</span>
+                      )}
+                    </td>
                     {puedeEditar && (
-                      <td style={{ padding: "0.75rem" }}>
+                      <td style={{ padding: "0.75rem", display: "flex", gap: "0.5rem" }}>
                         <button
                           type="button"
                           onClick={() => iniciarReemplazo(a)}
@@ -463,12 +693,26 @@ function ReemplazosAsistenciaPage() {
                             backgroundColor: "#2563eb",
                             color: "#ffffff",
                             border: "none",
-                            padding: "0.35rem 0.85rem",
+                            padding: "0.35rem 0.75rem",
                             borderRadius: "4px",
                             cursor: "pointer",
                           }}
                         >
                           Reemplazar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => iniciarRetiro(a)}
+                          style={{
+                            backgroundColor: "#e11d48",
+                            color: "#ffffff",
+                            border: "none",
+                            padding: "0.35rem 0.75rem",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Retirar
                         </button>
                       </td>
                     )}
@@ -478,14 +722,14 @@ function ReemplazosAsistenciaPage() {
             </table>
           )}
 
-          {/* Historial de trabajadores reemplazados en la transmisión */}
+          {/* Historial de Reemplazos (RF-14) y Retiros (RF-15) */}
           <h2 style={{ color: "#1e3a8a", fontSize: "1.15rem" }}>
-            Historial de Reemplazos Registrados ({historialReemplazos.length})
+            Historial de Reemplazos y Retiros Registrados ({historialBajas.length})
           </h2>
 
-          {historialReemplazos.length === 0 ? (
+          {historialBajas.length === 0 ? (
             <p style={{ color: "#64748b" }}>
-              No se han registrado reemplazos en esta transmisión.
+              No se han registrado reemplazos ni retiros en esta transmisión.
             </p>
           ) : (
             <table
@@ -499,7 +743,10 @@ function ReemplazosAsistenciaPage() {
               <thead>
                 <tr style={{ backgroundColor: "#e2e8f0", color: "#1e293b", textAlign: "left" }}>
                   <th style={{ padding: "0.75rem", borderBottom: "1px solid #cbd5e1" }}>
-                    Trabajador Reemplazado
+                    Trabajador
+                  </th>
+                  <th style={{ padding: "0.75rem", borderBottom: "1px solid #cbd5e1" }}>
+                    Estado
                   </th>
                   <th style={{ padding: "0.75rem", borderBottom: "1px solid #cbd5e1" }}>
                     Reemplazado por
@@ -508,18 +755,33 @@ function ReemplazosAsistenciaPage() {
                     Roles que tenía
                   </th>
                   <th style={{ padding: "0.75rem", borderBottom: "1px solid #cbd5e1" }}>
-                    Motivo del reemplazo
+                    Motivo registrado
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {historialReemplazos.map((h) => (
+                {historialBajas.map((h) => (
                   <tr key={h.id} style={{ borderBottom: "1px solid #cbd5e1" }}>
                     <td style={{ padding: "0.75rem", fontWeight: "500" }}>
                       {h.trabajador?.nombre}
                     </td>
+                    <td style={{ padding: "0.75rem" }}>
+                      <span
+                        style={{
+                          backgroundColor:
+                            h.estado === "REEMPLAZADO" ? "#dbeafe" : "#ffe4e6",
+                          color: h.estado === "REEMPLAZADO" ? "#1e40af" : "#9f1239",
+                          padding: "0.15rem 0.55rem",
+                          borderRadius: "12px",
+                          fontSize: "0.8rem",
+                          fontWeight: "600",
+                        }}
+                      >
+                        {h.estado}
+                      </span>
+                    </td>
                     <td style={{ padding: "0.75rem", color: "#1d4ed8", fontWeight: "600" }}>
-                      {h.reemplazadaPorNombre || "—"}
+                      {h.reemplazadaPorNombre || "Sin reemplazo"}
                     </td>
                     <td style={{ padding: "0.75rem" }}>
                       {h.roles.map((r) => ETIQUETAS_ROL[r] || r).join(", ")}

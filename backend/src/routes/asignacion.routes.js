@@ -1,4 +1,4 @@
-// Rutas de asignación de trabajadores, comisiones y reemplazos (/api/asignaciones).
+// Rutas de asignación, comisiones, reemplazos, retiros y asistencia (/api/asignaciones).
 const { Router } = require("express");
 const asignacionController = require("../controllers/asignacion.controller");
 const { requireAuth, requireRol } = require("../middlewares/auth.middleware");
@@ -7,6 +7,9 @@ const {
   crearAsignacionSchema,
   definirComisionSchema,
   reemplazarAsignacionSchema,
+  retirarAsignacionSchema,
+  registrarAsistenciaSchema,
+  registrarCamarasSchema,
 } = require("../schemas/asignacion.schema");
 
 const router = Router();
@@ -38,6 +41,27 @@ router.post(
   requireRol("DUENO"),
   validate(reemplazarAsignacionSchema),
   asignacionController.reemplazar
+);
+
+router.post(
+  "/:id/retirar",
+  requireRol("DUENO"),
+  validate(retirarAsignacionSchema),
+  asignacionController.retirar
+);
+
+router.patch(
+  "/:id/asistencia",
+  requireRol("DUENO"),
+  validate(registrarAsistenciaSchema),
+  asignacionController.actualizarAsistencia
+);
+
+router.patch(
+  "/transmision/:transmisionId/camaras",
+  requireRol("DUENO"),
+  validate(registrarCamarasSchema),
+  asignacionController.actualizarCamaras
 );
 
 module.exports = router;

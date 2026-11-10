@@ -1,4 +1,4 @@
-// Lógica de negocio para asignación (RF-12), comisiones (RF-13) y reemplazo de trabajadores (RF-14).
+// Lógica de negocio para asignación, comisiones, reemplazos, retiros y asistencia (RF-12 a RF-16).
 const prisma = require("../config/prisma");
 
 const TIEMPO_TRASLADO_DEFECTO_MIN = 60;
@@ -37,9 +37,10 @@ function formatearAsignacion(a, precioCotizado = 0) {
       ? Number(a.porcentajeComision)
       : null;
   const precio = Number(precioCotizado || 0);
-  // Solo las asignaciones activas ("ASIGNADO") generan comisión activa
-  const montoComision =
-    a.estado === "ASIGNADO" && pct !== null ? Math.round((precio * pct) / 100) : 0;
+  // Solo devengan comisión las asignaciones en estado ASIGNADO que no tengan inasistencia marcada
+  const devengaComision =
+    a.estado === "ASIGNADO" && a.asistencia !== "NO_ASISTIO" && pct !== null;
+  const montoComision = devengaComision ? Math.round((precio * pct) / 100) : 0;
 
   return {
     id: a.id,
@@ -193,6 +194,7 @@ async function obtenerContextoTransmision(transmisionId, tiempoTrasladoConfigMin
 
   const sumaPorcentajes = Number(
     asignacionesActivas
+      .filter((a) => a.asistencia !== "NO_ASISTIO")
       .reduce((acc, a) => acc + (a.porcentajeComision || 0), 0)
       .toFixed(2)
   );
@@ -243,6 +245,7 @@ async function obtenerContextoTransmision(transmisionId, tiempoTrasladoConfigMin
       zona: transmision.zona,
       estado: transmision.estado,
       cantidadCamaras: transmision.cantidadCamaras,
+      camarasUtilizadas: transmision.camarasUtilizadas,
       tiempoTrasladoMin: transmision.tiempoTrasladoMin,
       precioCotizado,
       cliente: transmision.cliente?.nombre || "",
@@ -421,7 +424,6 @@ async function definirPorcentajeComision(asignacionId, porcentajeComision, usuar
   return formatearAsignacion(actualizada, asignacion.transmision.precioCotizado);
 }
 
-// RF-14: Reemplazar un trabajador asignado por otro trabajador activo, conservando historial
 async function reemplazarTrabajador(asignacionOriginalId, datos, usuarioId) {
   const original = await prisma.asignacion.findUnique({
     where: { id: Number(asignacionOriginalId) },
@@ -473,7 +475,6 @@ async function reemplazarTrabajador(asignacionOriginalId, datos, usuarioId) {
     throw err;
   }
 
-  // Verificar que el reemplazante no esté ya asignado activamente en esta misma transmisión
   const yaAsignadoEnEvento = await prisma.asignacion.findFirst({
     where: {
       transmisionId: original.transmisionId,
@@ -490,7 +491,6 @@ async function reemplazarTrabajador(asignacionOriginalId, datos, usuarioId) {
     throw err;
   }
 
-  // Si no se especificaron roles nuevos, hereda los roles que tenía la asignación original
   const rolesOriginales = original.roles.map((r) => r.rolTecnico?.nombre).filter(Boolean);
   const rolesARemplazar =
     Array.isArray(datos.roles) && datos.roles.length > 0 ? datos.roles : rolesOriginales;
@@ -508,7 +508,6 @@ async function reemplazarTrabajador(asignacionOriginalId, datos, usuarioId) {
     throw err;
   }
 
-  // Evaluar disponibilidad, choques y traslado del reemplazante
   const evaluacion = await evaluarConflictosHorario(
     nuevoTrabajador.id,
     original.transmision,
@@ -530,7 +529,6 @@ async function reemplazarTrabajador(asignacionOriginalId, datos, usuarioId) {
       ? Number(original.porcentajeComision)
       : null;
 
-  // Transacción atómica: marcar original como REEMPLAZADO y crear la nueva asignación con reemplazaAId
   const [, nuevaAsignacion] = await prisma.$transaction([
     prisma.asignacion.update({
       where: { id: original.id },
@@ -568,9 +566,139 @@ async function reemplazarTrabajador(asignacionOriginalId, datos, usuarioId) {
   return formatearAsignacion(nuevaAsignacion, original.transmision.precioCotizado);
 }
 
+// RF-15: Retiro de una asignación sin reemplazo conservando trazabilidad
+async function retirarTrabajador(asignacionId, motivo, usuarioId) {
+  const asignacion = await prisma.asignacion.findUnique({
+    where: { id: Number(asignacionId) },
+    include: {
+      transmision: true,
+      trabajador: true,
+    },
+  });
+
+  if (!asignacion) return null;
+
+  if (asignacion.estado !== "ASIGNADO") {
+    const err = new Error(
+      `Solo se puede retirar una asignación activa (estado actual: ${asignacion.estado})`
+    );
+    err.status = 400;
+    throw err;
+  }
+
+  const retirada = await prisma.asignacion.update({
+    where: { id: Number(asignacionId) },
+    data: {
+      estado: "RETIRADO",
+      motivo: motivo.trim(),
+    },
+    include: includeAsignacion,
+  });
+
+  await prisma.registroCambio.create({
+    data: {
+      usuarioId: usuarioId || null,
+      modulo: "Personal",
+      accion: "MODIFICAR",
+      entidad: "Asignacion",
+      entidadId: retirada.id,
+      detalle: `Retiró la asignación de ${asignacion.trabajador.nombre} en "${asignacion.transmision.nombreEvento}". Motivo: ${motivo.trim()}`,
+    },
+  });
+
+  return formatearAsignacion(retirada, asignacion.transmision.precioCotizado);
+}
+
+// RF-16: Registro de asistencia del trabajador asignado
+async function registrarAsistencia(asignacionId, asistencia, usuarioId) {
+  const asignacion = await prisma.asignacion.findUnique({
+    where: { id: Number(asignacionId) },
+    include: {
+      transmision: true,
+      trabajador: true,
+    },
+  });
+
+  if (!asignacion) return null;
+
+  if (asignacion.estado !== "ASIGNADO") {
+    const err = new Error(
+      "Solo se puede registrar asistencia para trabajadores con asignación activa (ASIGNADO)"
+    );
+    err.status = 400;
+    throw err;
+  }
+
+  const actualizada = await prisma.asignacion.update({
+    where: { id: Number(asignacionId) },
+    data: {
+      asistencia,
+    },
+    include: includeAsignacion,
+  });
+
+  await prisma.registroCambio.create({
+    data: {
+      usuarioId: usuarioId || null,
+      modulo: "Personal",
+      accion: "MODIFICAR",
+      entidad: "Asignacion",
+      entidadId: actualizada.id,
+      detalle: `Registró asistencia "${asistencia}" para ${asignacion.trabajador.nombre} en "${asignacion.transmision.nombreEvento}"`,
+    },
+  });
+
+  return formatearAsignacion(actualizada, asignacion.transmision.precioCotizado);
+}
+
+// RF-16: Registro de cámaras efectivamente utilizadas en la transmisión
+async function actualizarCamarasUtilizadas(transmisionId, camarasUtilizadas, usuarioId) {
+  const transmision = await prisma.transmision.findUnique({
+    where: { id: Number(transmisionId) },
+  });
+
+  if (!transmision) return null;
+
+  if (
+    camarasUtilizadas !== null &&
+    camarasUtilizadas > transmision.cantidadCamaras
+  ) {
+    const err = new Error(
+      `Las cámaras utilizadas (${camarasUtilizadas}) no pueden superar las cámaras cotizadas (${transmision.cantidadCamaras}).`
+    );
+    err.status = 400;
+    throw err;
+  }
+
+  const actualizada = await prisma.transmision.update({
+    where: { id: Number(transmisionId) },
+    data: {
+      camarasUtilizadas: camarasUtilizadas === null ? null : Number(camarasUtilizadas),
+    },
+  });
+
+  await prisma.registroCambio.create({
+    data: {
+      usuarioId: usuarioId || null,
+      modulo: "Personal",
+      accion: "MODIFICAR",
+      entidad: "Transmision",
+      entidadId: actualizada.id,
+      detalle: `Registró cámaras utilizadas: ${
+        actualizada.camarasUtilizadas ?? transmision.cantidadCamaras
+      } de ${transmision.cantidadCamaras} cotizadas en "${transmision.nombreEvento}"`,
+    },
+  });
+
+  return actualizada;
+}
+
 module.exports = {
   obtenerContextoTransmision,
   asignarTrabajador,
   definirPorcentajeComision,
   reemplazarTrabajador,
+  retirarTrabajador,
+  registrarAsistencia,
+  actualizarCamarasUtilizadas,
 };
