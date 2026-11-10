@@ -1,4 +1,4 @@
-// Esquemas de validación con Zod para los pagos del cliente (requisito 4.1, MER v3.1).
+// Esquemas de validación con Zod para los pagos del cliente (requisito 4.1, MER final).
 // Lo usa routes/pago.routes.js a través de validate.middleware.js.
 const { z } = require("zod");
 
@@ -16,9 +16,8 @@ const crearPagoSchema = z.object({
   fecha: z.coerce
     .date({ message: "La fecha no es válida" })
     .refine((fecha) => fecha <= new Date(), { message: "La fecha de recepción no puede ser futura" }),
-  medio: z
-    .enum(["TRANSFERENCIA", "EFECTIVO"], { message: "El medio debe ser TRANSFERENCIA o EFECTIVO" })
-    .optional(),
+  // Obligatorio en el schema del grupo (Pago.medio).
+  medio: z.enum(["TRANSFERENCIA", "EFECTIVO"], { message: "El medio debe ser TRANSFERENCIA o EFECTIVO" }),
 });
 
 module.exports = {
