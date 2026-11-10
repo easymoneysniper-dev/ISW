@@ -10,15 +10,21 @@ const ROLES_VALIDOS = [
 ];
 
 const crearTrabajadorSchema = z.object({
+  rut: z
+    .string({ required_error: "El RUT es obligatorio" })
+    .trim()
+    .min(7, "El RUT debe tener al menos 7 caracteres")
+    .max(12, "El RUT no puede superar los 12 caracteres (ej: 12345678-9)"),
   nombre: z
     .string({ required_error: "El nombre es obligatorio" })
     .trim()
-    .min(2, "El nombre debe tener al menos 2 caracteres"),
+    .min(2, "El nombre debe tener al menos 2 caracteres")
+    .max(150, "El nombre no puede superar los 150 caracteres"),
   telefono: z
     .string({ required_error: "El teléfono es obligatorio" })
     .trim()
-    .min(8, "El teléfono debe tener al menos 8 caracteres"),
-  rut: z.string().trim().optional().nullable(),
+    .min(8, "El teléfono debe tener al menos 8 caracteres")
+    .max(30, "El teléfono no puede superar los 30 caracteres"),
   email: z
     .string()
     .trim()
