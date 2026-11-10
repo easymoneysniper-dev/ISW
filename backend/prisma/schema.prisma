@@ -1,8 +1,16 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// =====================================================================
+// schema.prisma — Base de datos del sistema de gestión de transmisiones
+// ISW Grupo 3 · basado en el MER y en los 37 requisitos definitivos
+//
+// Cómo leer este archivo:
+//   - Cada "model" es una tabla (una entidad del MER).
+//   - Cada línea dentro del model es una columna (un atributo).
+//   - "@id" = clave primaria (PK), "@unique" = no se puede repetir,
+//     "?" después del tipo = puede quedar vacío (NULL).
+//   - "@relation" une dos tablas (una relación del MER) con una clave foránea (FK).
+//   - "@@map" es el nombre real de la tabla en PostgreSQL.
+//   - Los "enum" son listas cerradas de valores permitidos (los dominios del MER).
+// =====================================================================
 
 generator client {
   provider = "prisma-client-js"
@@ -11,6 +19,17 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------
+// Dominios (enums)
+// ---------------------------------------------------------------------
+
+enum RolUsuario {
+  DUENO
+  CONTADOR
+  JEFE_TECNICO
+  ADMIN_DESARROLLO // solo para pruebas del equipo, no es un rol del negocio
 }
 
 enum EstadoTransmision {
@@ -24,84 +43,40 @@ enum EstadoTransmision {
   CANCELADA
 }
 
-model Cliente {
-  id            Int           @id @default(autoincrement())
-  nombre        String        @db.VarChar(150)
-  transmisiones Transmision[]
-  creadoEn      DateTime      @default(now()) @db.Timestamptz(3)
-  actualizadoEn DateTime      @updatedAt @db.Timestamptz(3)
-
-  @@map("clientes")
+enum Zona {
+  LOCAL
+  REGIONES
 }
 
-model Transmision {
-  id              Int               @id @default(autoincrement())
-  nombreEvento    String            @db.VarChar(200)
-  inicio          DateTime          @db.Timestamptz(3)
-  termino         DateTime          @db.Timestamptz(3)
-  lugar           String            @db.VarChar(250)
-  cantidadCamaras Int
-  precioCotizado  Decimal           @db.Decimal(14, 0)
-  salidaRegiones  Boolean           @default(false)
-  estado          EstadoTransmision @default(COTIZADA)
-
-  clienteId Int
-  cliente   Cliente @relation(fields: [clienteId], references: [id], onDelete: Restrict)
-
-  creadoEn      DateTime @default(now()) @db.Timestamptz(3)
-  actualizadoEn DateTime @updatedAt @db.Timestamptz(3)
-
-  @@index([inicio])
-  @@index([clienteId])
-  @@map("transmisiones")
+enum DecisionAdelanto {
+  RETENER
+  DEVOLVER
 }
 
-enum RolUsuario {
-  DUENO
-  CONTADOR
-  JEFE_TECNICO
-  ADMIN_DESARROLLO
+enum EstadoAsignacion {
+  ASIGNADO
+  REEMPLAZADO
+  RETIRADO
 }
 
-model Usuario {
-  id            Int        @id @default(autoincrement())
-  nombre        String     @db.VarChar(150)
-  email         String     @unique @db.VarChar(254)
-  passwordHash  String     @db.VarChar(255)
-  rol           RolUsuario
-  activo        Boolean    @default(true)
-  creadoEn      DateTime   @default(now()) @db.Timestamptz(3)
-  actualizadoEn DateTime   @updatedAt @db.Timestamptz(3)
-
-  @@map("usuarios")
+enum Asistencia {
+  PENDIENTE
+  ASISTIO
+  NO_ASISTIO
 }
 
-model Trabajador {
-  id            Int      @id @default(autoincrement())
-  nombre        String   @db.VarChar(150)
-  rut           String?  @unique @db.VarChar(20)
-  telefono      String   @db.VarChar(30)
-  email         String?  @unique @db.VarChar(254)
-  roles         String[]
-  activo        Boolean  @default(true)
-  creadoEn      DateTime @default(now()) @db.Timestamptz(3)
-  actualizadoEn DateTime @updatedAt @db.Timestamptz(3)
-
-  @@map("trabajadores")
+enum CategoriaKit {
+  NUEVO // recargo 15 %
+  INTERMEDIO // recargo 10 %
+  ANTIGUO // recargo 0 %
 }
 
-model RegistroCambio {
-  id        Int      @id @default(autoincrement())
-  usuarioId Int?
-  modulo    String   @db.VarChar(20)
-  accion    String   @db.VarChar(50)
-  entidad   String   @db.VarChar(100)
-  entidadId Int?
-  detalle   String?  @db.VarChar(500)
-  creadoEn  DateTime @default(now()) @db.Timestamptz(3)
-
-  @@index([creadoEn])
-  @@map("registros_cambio")
+enum TipoEquipo {
+  CAMARA
+  TRIPODE
+  MICROFONO
+  SWITCH
+  OTRO
 }
 
 enum EstadoEquipo {
@@ -112,11 +87,252 @@ enum EstadoEquipo {
   DADO_DE_BAJA
 }
 
-// Contenedor básico para RF 3.1. La composición y clasificación se amplían en RF 3.2.
+enum EstadoRetorno {
+  BUEN_ESTADO
+  DANADO
+  NO_DEVUELTO
+}
+
+enum TipoIncidente {
+  DANO
+  PERDIDA
+  ROBO
+}
+
+enum TipoPago {
+  ADELANTO
+  SALDO
+}
+
+enum MedioPago {
+  TRANSFERENCIA
+  EFECTIVO
+}
+
+enum CategoriaGasto {
+  MOVILIZACION
+  PEAJE
+  ALIMENTACION
+  OTRO
+}
+
+enum TipoAporte {
+  DINERO
+  CANJE
+}
+
+// "Atrasado" no se guarda: se calcula (COMPROMETIDO + fecha comprometida vencida)
+enum EstadoAporte {
+  COMPROMETIDO
+  CUMPLIDO
+  NO_CUMPLIDO
+}
+
+// ---------------------------------------------------------------------
+// Común: usuarios e historial de cambios (requisitos 1.13 y 2.3)
+// ---------------------------------------------------------------------
+
+model Usuario {
+  id           Int        @id @default(autoincrement())
+  nombre       String     @db.VarChar(150)
+  email        String     @unique @db.VarChar(254)
+  passwordHash String     @db.VarChar(255) // la contraseña se guarda cifrada (bcrypt)
+  rol          RolUsuario
+  activo       Boolean    @default(true)
+
+  registrosCambio RegistroCambio[] // relación "Realiza"
+
+  creadoEn      DateTime @default(now()) @db.Timestamptz(3)
+  actualizadoEn DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("usuarios")
+}
+
+// Solo se agregan filas: nunca se modifican ni se eliminan (requisito 2.3).
+model RegistroCambio {
+  id        Int     @id @default(autoincrement())
+  modulo    String  @db.VarChar(20) // Transmisiones, Personal, Inventario o Finanzas
+  accion    String  @db.VarChar(50) // CREAR, MODIFICAR o ELIMINAR
+  entidad   String  @db.VarChar(100) // tabla afectada, ej: "Transmision"
+  entidadId Int?
+  detalle   String? @db.VarChar(500)
+
+  // Vacío cuando el cambio lo hace el sistema solo (ej: estados automáticos, requisito 1.5)
+  usuarioId Int?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  creadoEn DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([creadoEn])
+  @@index([usuarioId])
+  @@map("registros_cambio")
+}
+
+// ---------------------------------------------------------------------
+// Módulo 1: Transmisiones y clientes
+// ---------------------------------------------------------------------
+
+model Cliente {
+  id       Int     @id @default(autoincrement())
+  nombre   String  @db.VarChar(150)
+  telefono String? @db.VarChar(30)
+  email    String? @db.VarChar(254) // al menos teléfono o correo (se valida en el backend)
+
+  transmisiones Transmision[] // relación "Solicita"
+
+  creadoEn      DateTime @default(now()) @db.Timestamptz(3)
+  actualizadoEn DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("clientes")
+}
+
+model Transmision {
+  id                Int               @id @default(autoincrement())
+  nombreEvento      String            @db.VarChar(200)
+  inicio            DateTime          @db.Timestamptz(3)
+  termino           DateTime          @db.Timestamptz(3)
+  lugar             String            @db.VarChar(250)
+  zona              Zona              @default(LOCAL)
+  cantidadCamaras   Int
+  camarasUtilizadas Int? // se llena si se usaron menos cámaras (requisito 2.9)
+  tiempoTrasladoMin Int               @default(0) // minutos de traslado (requisito 1.1)
+  precioBase        Decimal           @db.Decimal(14, 0)
+  ajuste            Decimal           @default(0) @db.Decimal(14, 0) // puede ser negativo
+  precioCotizado    Decimal           @db.Decimal(14, 0) // calculado (requisito 1.2)
+  requiereAdelanto  Boolean           @default(false) // calculado (requisito 1.2)
+  estado            EstadoTransmision @default(COTIZADA)
+  motivoCancelacion String?           @db.VarChar(500)
+  decisionAdelanto  DecisionAdelanto? // solo si se cancela con adelanto pagado
+  fechaRendicion    DateTime?         @db.Timestamptz(3) // rendición de gastos completa (requisito 4.2)
+
+  clienteId Int
+  cliente   Cliente @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+
+  asignaciones Asignacion[] // relación "Requiere"
+  kits         TransmisionKit[] // relación "Usa"
+  salidas      SalidaEquipo[] // relación "Origina"
+  pagos        Pago[] // relación "Recibe"
+  gastos       Gasto[] // relación "Genera"
+  aportes      Aporte[] // relación "Apoya"
+
+  creadoEn      DateTime @default(now()) @db.Timestamptz(3)
+  actualizadoEn DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([inicio])
+  @@index([clienteId])
+  @@index([estado])
+  @@map("transmisiones")
+}
+
+// ---------------------------------------------------------------------
+// Módulo 2: Personal y asignaciones
+// ---------------------------------------------------------------------
+
+model Trabajador {
+  id       Int     @id @default(autoincrement())
+  rut      String  @unique @db.VarChar(12) // en el MER es el identificador; aquí, único
+  nombre   String  @db.VarChar(150)
+  telefono String  @db.VarChar(30)
+  email    String? @unique @db.VarChar(254) // opcional, dato de contacto (Requisito 2.1)
+  activo   Boolean @default(true)
+
+  roles            TrabajadorRol[] // relación "Puede cumplir"
+  disponibilidades Disponibilidad[] // relación "Informa"
+  asignaciones     Asignacion[] // relación "Recibe"
+  salidas          SalidaEquipo[] // relación "Responde por"
+
+  creadoEn      DateTime @default(now()) @db.Timestamptz(3)
+  actualizadoEn DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("trabajadores")
+}
+
+// Catálogo: Cámara, Audio, Operador de switch, Instalación técnica, Relator
+model RolTecnico {
+  id     Int    @id @default(autoincrement())
+  nombre String @unique @db.VarChar(50)
+
+  trabajadores TrabajadorRol[]
+  asignaciones AsignacionRol[]
+
+  @@map("roles_tecnicos")
+}
+
+// Relación "Puede cumplir" (muchos a muchos): roles que sabe hacer cada trabajador
+model TrabajadorRol {
+  trabajadorId Int
+  rolTecnicoId Int
+  trabajador   Trabajador @relation(fields: [trabajadorId], references: [id], onDelete: Cascade)
+  rolTecnico   RolTecnico @relation(fields: [rolTecnicoId], references: [id], onDelete: Restrict)
+
+  @@id([trabajadorId, rolTecnicoId])
+  @@map("trabajador_roles")
+}
+
+model Disponibilidad {
+  id      Int      @id @default(autoincrement())
+  inicio  DateTime @db.Timestamptz(3)
+  termino DateTime @db.Timestamptz(3)
+
+  trabajadorId Int
+  trabajador   Trabajador @relation(fields: [trabajadorId], references: [id], onDelete: Cascade)
+
+  @@index([trabajadorId, inicio])
+  @@map("disponibilidades")
+}
+
+model Asignacion {
+  id                 Int              @id @default(autoincrement())
+  porcentajeComision Decimal?         @db.Decimal(5, 2) // > 0 y ≤ 100 (requisito 2.5)
+  estado             EstadoAsignacion @default(ASIGNADO)
+  motivo             String?          @db.VarChar(300) // del reemplazo o retiro
+  asistencia         Asistencia       @default(PENDIENTE)
+  fechaLiquidacion   DateTime?        @db.Date // con fecha = comisión liquidada (requisito 2.10)
+
+  transmisionId Int
+  transmision   Transmision @relation(fields: [transmisionId], references: [id], onDelete: Restrict)
+  trabajadorId  Int
+  trabajador    Trabajador  @relation(fields: [trabajadorId], references: [id], onDelete: Restrict)
+
+  // Relación reflexiva "Reemplaza": la asignación nueva apunta a la que reemplaza
+  reemplazaAId   Int?        @unique
+  reemplazaA     Asignacion? @relation("Reemplazo", fields: [reemplazaAId], references: [id], onDelete: Restrict)
+  reemplazadaPor Asignacion? @relation("Reemplazo")
+
+  roles AsignacionRol[] // relación "Cumple"
+
+  creadoEn      DateTime @default(now()) @db.Timestamptz(3)
+  actualizadoEn DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([transmisionId])
+  @@index([trabajadorId])
+  @@map("asignaciones")
+}
+
+// Relación "Cumple" (muchos a muchos): roles que cumple en ese evento
+model AsignacionRol {
+  asignacionId Int
+  rolTecnicoId Int
+  asignacion   Asignacion @relation(fields: [asignacionId], references: [id], onDelete: Cascade)
+  rolTecnico   RolTecnico @relation(fields: [rolTecnicoId], references: [id], onDelete: Restrict)
+
+  @@id([asignacionId, rolTecnicoId])
+  @@map("asignacion_roles")
+}
+
+// ---------------------------------------------------------------------
+// Módulo 3: Inventario y kits
+// ---------------------------------------------------------------------
+
 model Kit {
-  id            Int      @id @default(autoincrement())
-  nombre        String   @unique @db.VarChar(150)
-  equipos       Equipo[]
+  id            Int          @id @default(autoincrement())
+  nombre        String       @unique @db.VarChar(150)
+  categoria     CategoriaKit @default(ANTIGUO)
+  enCondiciones Boolean      @default(false) // lo decide el Jefe de Área Técnica (requisito 3.2)
+
+  equipos       Equipo[] // relación "Agrupa"
+  transmisiones TransmisionKit[] // relación "Usa"
+
   creadoEn      DateTime @default(now()) @db.Timestamptz(3)
   actualizadoEn DateTime @updatedAt @db.Timestamptz(3)
 
@@ -124,20 +340,179 @@ model Kit {
 }
 
 model Equipo {
-  id            Int          @id @default(autoincrement())
-  nombre        String       @db.VarChar(150)
-  marca         String?      @db.VarChar(100)
-  modelo        String?      @db.VarChar(100)
-  numeroSerie   String?      @unique @db.VarChar(150)
-  precioCompra  Decimal      @db.Decimal(14, 0)
-  fechaCompra   DateTime     @db.Date
-  estado        EstadoEquipo @default(DISPONIBLE)
-  kitId         Int?
-  kit           Kit?         @relation(fields: [kitId], references: [id], onDelete: Restrict)
-  creadoEn      DateTime     @default(now()) @db.Timestamptz(3)
-  actualizadoEn DateTime     @updatedAt @db.Timestamptz(3)
+  id           Int          @id @default(autoincrement())
+  nombre       String       @db.VarChar(150)
+  tipo         TipoEquipo   @default(OTRO)
+  marca        String?      @db.VarChar(100)
+  modelo       String?      @db.VarChar(100)
+  numeroSerie  String?      @unique @db.VarChar(150)
+  precioCompra Decimal      @db.Decimal(14, 0)
+  fechaCompra  DateTime     @db.Date
+  estado       EstadoEquipo @default(DISPONIBLE)
+  fechaBaja    DateTime?    @db.Date // para el reporte mensual (requisito 3.6)
+
+  kitId Int? // vacío = repuesto suelto
+  kit   Kit? @relation(fields: [kitId], references: [id], onDelete: Restrict)
+
+  salidas SalidaEquipo[] // relación "Tiene"
+
+  creadoEn      DateTime @default(now()) @db.Timestamptz(3)
+  actualizadoEn DateTime @updatedAt @db.Timestamptz(3)
 
   @@index([fechaCompra])
   @@index([kitId])
   @@map("equipos")
+}
+
+// Relación "Usa" (muchos a muchos) con su atributo: el recargo aplicado al reservar
+model TransmisionKit {
+  transmisionId   Int
+  kitId           Int
+  recargoAplicado Decimal @db.Decimal(5, 2) // 15, 10 o 0 (%)
+
+  transmision Transmision @relation(fields: [transmisionId], references: [id], onDelete: Cascade)
+  kit         Kit         @relation(fields: [kitId], references: [id], onDelete: Restrict)
+
+  @@id([transmisionId, kitId])
+  @@map("transmision_kits")
+}
+
+// Salida y retorno de un equipo, ítem por ítem (requisito 3.3)
+model SalidaEquipo {
+  id            Int            @id @default(autoincrement())
+  fechaSalida   DateTime       @db.Timestamptz(3)
+  fechaRetorno  DateTime?      @db.Timestamptz(3) // vacío = aún no vuelve
+  estadoRetorno EstadoRetorno?
+
+  transmisionId Int
+  transmision   Transmision @relation(fields: [transmisionId], references: [id], onDelete: Restrict)
+  equipoId      Int
+  equipo        Equipo      @relation(fields: [equipoId], references: [id], onDelete: Restrict)
+  responsableId Int
+  responsable   Trabajador  @relation(fields: [responsableId], references: [id], onDelete: Restrict)
+
+  incidente Incidente? // relación "Presenta"
+
+  @@index([transmisionId])
+  @@index([equipoId])
+  @@map("salidas_equipo")
+}
+
+// El incidente nace de una salida: de ahí salen el equipo, la transmisión y el responsable (requisito 3.4)
+model Incidente {
+  id          Int           @id @default(autoincrement())
+  tipo        TipoIncidente
+  observacion String        @db.VarChar(500)
+  fecha       DateTime      @db.Date
+
+  salidaId Int          @unique
+  salida   SalidaEquipo @relation(fields: [salidaId], references: [id], onDelete: Restrict)
+
+  @@map("incidentes")
+}
+
+// ---------------------------------------------------------------------
+// Módulo 4: Finanzas y auspiciadores
+// ---------------------------------------------------------------------
+
+model Pago {
+  id                 Int       @id @default(autoincrement())
+  tipo               TipoPago
+  monto              Decimal   @db.Decimal(14, 0)
+  fecha              DateTime  @db.Date // fecha de recepción (no futura)
+  medio              MedioPago
+  comprobanteArchivo String    @db.VarChar(300) // nombre del archivo guardado en uploads/comprobantes
+
+  transmisionId Int
+  transmision   Transmision @relation(fields: [transmisionId], references: [id], onDelete: Restrict)
+
+  devolucion Devolucion? // relación "Se devuelve en"
+
+  creadoEn DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([transmisionId])
+  @@map("pagos")
+}
+
+model Devolucion {
+  id                 Int       @id @default(autoincrement())
+  monto              Decimal   @db.Decimal(14, 0)
+  fecha              DateTime  @db.Date
+  medio              MedioPago
+  comprobanteArchivo String    @db.VarChar(300)
+
+  pagoId Int  @unique
+  pago   Pago @relation(fields: [pagoId], references: [id], onDelete: Restrict)
+
+  creadoEn DateTime @default(now()) @db.Timestamptz(3)
+
+  @@map("devoluciones")
+}
+
+model Gasto {
+  id                 Int            @id @default(autoincrement())
+  categoria          CategoriaGasto
+  monto              Decimal        @db.Decimal(14, 0)
+  fecha              DateTime       @db.Date
+  observacion        String?        @db.VarChar(500)
+  comprobanteArchivo String         @db.VarChar(300)
+  origen             String?        @db.VarChar(250) // obligatorio en MOVILIZACION
+  destino            String?        @db.VarChar(250) // obligatorio en MOVILIZACION
+
+  transmisionId Int
+  transmision   Transmision @relation(fields: [transmisionId], references: [id], onDelete: Restrict)
+
+  creadoEn DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([transmisionId])
+  @@map("gastos")
+}
+
+model CostoFijo {
+  id     Int     @id @default(autoincrement())
+  nombre String  @db.VarChar(150)
+  mes    Int // 1 a 12
+  anio   Int
+  monto  Decimal @db.Decimal(14, 0)
+
+  creadoEn DateTime @default(now()) @db.Timestamptz(3)
+
+  @@unique([nombre, mes, anio]) // no se repite el mismo costo en el mismo mes
+  @@map("costos_fijos")
+}
+
+model Auspiciador {
+  id       Int    @id @default(autoincrement())
+  nombre   String @db.VarChar(150)
+  contacto String @db.VarChar(150)
+
+  aportes Aporte[] // relación "Compromete"
+
+  creadoEn DateTime @default(now()) @db.Timestamptz(3)
+
+  @@map("auspiciadores")
+}
+
+model Aporte {
+  id                 Int          @id @default(autoincrement())
+  tipo               TipoAporte
+  descripcion        String       @db.VarChar(500) // glosa del acuerdo o lo que entregará
+  valorPesos         Decimal?     @db.Decimal(14, 0) // monto si es dinero; valor del canje al recibirlo
+  fechaComprometida  DateTime     @db.Date
+  estado             EstadoAporte @default(COMPROMETIDO)
+  fechaRecepcion     DateTime?    @db.Date
+  comprobanteArchivo String?      @db.VarChar(300)
+  observacion        String?      @db.VarChar(500) // obligatoria al marcar No cumplido
+
+  auspiciadorId Int
+  auspiciador   Auspiciador @relation(fields: [auspiciadorId], references: [id], onDelete: Restrict)
+  transmisionId Int
+  transmision   Transmision @relation(fields: [transmisionId], references: [id], onDelete: Restrict)
+
+  creadoEn      DateTime @default(now()) @db.Timestamptz(3)
+  actualizadoEn DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([auspiciadorId])
+  @@index([transmisionId])
+  @@map("aportes")
 }
