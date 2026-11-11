@@ -1,5 +1,4 @@
-// Pantalla de gestión de trabajadores y sus roles técnicos (RF-10).
-// La muestra App.jsx (o el menú principal) y llama a services/trabajadorService.js.
+// Pantalla de registro y gestión de trabajadores (RF-10).
 import { useEffect, useState } from "react";
 import { useSesion } from "../../hooks/useSesion";
 import {
@@ -9,17 +8,20 @@ import {
 } from "../../services/trabajadorService";
 
 const ROLES_DISPONIBLES = [
-  "DIRECTOR",
-  "CAMAROGRAFO",
-  "SONIDISTA",
-  "PRODUCTOR",
-  "OPERADOR_REPLAY",
-  "TECNICO_TRANSMISION",
+  { valor: "CAMARA", etiqueta: "Cámara" },
+  { valor: "AUDIO", etiqueta: "Audio" },
+  { valor: "OPERADOR_SWITCH", etiqueta: "Operador de switch" },
+  { valor: "INSTALACION_TECNICA", etiqueta: "Instalación técnica" },
+  { valor: "RELATOR", etiqueta: "Relator" },
 ];
 
+const ETIQUETAS_ROL = Object.fromEntries(
+  ROLES_DISPONIBLES.map((r) => [r.valor, r.etiqueta])
+);
+
 const FORMULARIO_VACIO = {
-  nombre: "",
   rut: "",
+  nombre: "",
   telefono: "",
   email: "",
   roles: [],
@@ -28,7 +30,8 @@ const FORMULARIO_VACIO = {
 
 function TrabajadoresPage() {
   const { usuario } = useSesion();
-  const esDueno = usuario?.rol === "DUENO";
+  const puedeEditar =
+    usuario?.rol === "DUENO" || usuario?.rol === "ADMIN_DESARROLLO";
 
   const [trabajadores, setTrabajadores] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -56,26 +59,30 @@ function TrabajadoresPage() {
     cargarDatos();
   }, []);
 
-  function alternarRol(rol) {
+  function alternarRol(rolValor) {
     setForm((prev) => {
-      const yaEsta = prev.roles.includes(rol);
+      const yaEsta = prev.roles.includes(rolValor);
       return {
         ...prev,
         roles: yaEsta
-          ? prev.roles.filter((r) => r !== rol)
-          : [...prev.roles, rol],
+          ? prev.roles.filter((r) => r !== rolValor)
+          : [...prev.roles, rolValor],
       };
     });
   }
 
   function iniciarEdicion(trabajador) {
+    const rolesNormalizados = Array.isArray(trabajador.roles)
+      ? trabajador.roles.map((r) => (typeof r === "string" ? r : r.rolTecnico?.nombre)).filter(Boolean)
+      : [];
+
     setEditandoId(trabajador.id);
     setForm({
-      nombre: trabajador.nombre || "",
       rut: trabajador.rut || "",
+      nombre: trabajador.nombre || "",
       telefono: trabajador.telefono || "",
       email: trabajador.email || "",
-      roles: trabajador.roles || [],
+      roles: rolesNormalizados,
       activo: trabajador.activo ?? true,
     });
     setError("");
@@ -93,23 +100,33 @@ function TrabajadoresPage() {
     setError("");
     setMensaje("");
 
+    if (!form.rut.trim() || !form.nombre.trim() || !form.telefono.trim()) {
+      setError("Debes completar el RUT, el nombre y el teléfono del trabajador.");
+      return;
+    }
+
+    if (form.roles.length === 0) {
+      setError("Debes seleccionar al menos un rol para el trabajador.");
+      return;
+    }
+
     try {
       setGuardando(true);
       const payload = {
-        nombre: form.nombre,
-        rut: form.rut,
-        telefono: form.telefono || null,
-        email: form.email || null,
+        rut: form.rut.trim(),
+        nombre: form.nombre.trim(),
+        telefono: form.telefono.trim(),
+        email: form.email.trim() || null,
         roles: form.roles,
         activo: form.activo,
       };
 
       if (editandoId) {
         await actualizarTrabajador(editandoId, payload);
-        setMensaje("Trabajador actualizado correctamente");
+        setMensaje("Ficha del trabajador actualizada correctamente.");
       } else {
         await crearTrabajador(payload);
-        setMensaje("Trabajador registrado correctamente");
+        setMensaje("Trabajador registrado correctamente.");
       }
 
       setEditandoId(null);
@@ -123,12 +140,12 @@ function TrabajadoresPage() {
   }
 
   return (
-    <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "1.5rem" }}>
+    <div style={{ maxWidth: "960px", margin: "0 auto", padding: "1.5rem" }}>
       <h1 style={{ color: "#1e3a8a", marginBottom: "0.5rem" }}>
-        Personal y Roles Tcnicos
+        Registro de Trabajadores
       </h1>
       <p style={{ color: "#475569", marginBottom: "1.5rem" }}>
-        Registro de trabajadores de la empresa y las funciones que cada uno sabe desempeñar.
+        Incorporación de personal técnico y asignación de roles habilitados para transmisiones.
       </p>
 
       {error && (
@@ -159,7 +176,7 @@ function TrabajadoresPage() {
         </div>
       )}
 
-      {esDueno && (
+      {puedeEditar && (
         <form
           onSubmit={manejarSubmit}
           style={{
@@ -171,7 +188,7 @@ function TrabajadoresPage() {
           }}
         >
           <h2 style={{ color: "#1e3a8a", fontSize: "1.15rem", marginTop: 0 }}>
-            {editandoId ? "Editar trabajador" : "Registrar nuevo trabajador"}
+            {editandoId ? "Editar ficha del trabajador" : "Incorporar nuevo trabajador"}
           </h2>
 
           <div
@@ -184,7 +201,22 @@ function TrabajadoresPage() {
           >
             <div>
               <label style={{ display: "block", fontWeight: "600", marginBottom: "0.25rem" }}>
-                Nombre completo *
+                RUT (sin puntos) *
+              </label>
+              <input
+                type="text"
+                required
+                maxLength={12}
+                value={form.rut}
+                onChange={(e) => setForm({ ...form, rut: e.target.value })}
+                placeholder="Ej: 12345678-9"
+                style={{ width: "100%", padding: "0.5rem", borderRadius: "4px", border: "1px solid #94a3b8" }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: "block", fontWeight: "600", marginBottom: "0.25rem" }}>
+                Nombre *
               </label>
               <input
                 type="text"
@@ -198,24 +230,11 @@ function TrabajadoresPage() {
 
             <div>
               <label style={{ display: "block", fontWeight: "600", marginBottom: "0.25rem" }}>
-                RUT *
+                Teléfono *
               </label>
               <input
                 type="text"
                 required
-                value={form.rut}
-                onChange={(e) => setForm({ ...form, rut: e.target.value })}
-                placeholder="Ej: 18.345.678-9"
-                style={{ width: "100%", padding: "0.5rem", borderRadius: "4px", border: "1px solid #94a3b8" }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: "block", fontWeight: "600", marginBottom: "0.25rem" }}>
-                Teléfono
-              </label>
-              <input
-                type="text"
                 value={form.telefono}
                 onChange={(e) => setForm({ ...form, telefono: e.target.value })}
                 placeholder="Ej: +56912345678"
@@ -225,7 +244,7 @@ function TrabajadoresPage() {
 
             <div>
               <label style={{ display: "block", fontWeight: "600", marginBottom: "0.25rem" }}>
-                Correo electrónico
+                Correo (opcional)
               </label>
               <input
                 type="email"
@@ -239,29 +258,29 @@ function TrabajadoresPage() {
 
           <div style={{ marginBottom: "1rem" }}>
             <label style={{ display: "block", fontWeight: "600", marginBottom: "0.5rem" }}>
-              Roles técnicos que desempeña (selecciona al menos uno) *
+              Roles que puede desempeñar (selecciona al menos uno) *
             </label>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
               {ROLES_DISPONIBLES.map((rol) => (
                 <label
-                  key={rol}
+                  key={rol.valor}
                   style={{
                     display: "flex",
                     alignItems: "center",
                     gap: "0.35rem",
-                    backgroundColor: form.roles.includes(rol) ? "#dbeafe" : "#ffffff",
+                    backgroundColor: form.roles.includes(rol.valor) ? "#dbeafe" : "#ffffff",
                     border: "1px solid #93c5fd",
-                    padding: "0.35rem 0.75rem",
+                    padding: "0.4rem 0.8rem",
                     borderRadius: "20px",
                     cursor: "pointer",
                   }}
                 >
                   <input
                     type="checkbox"
-                    checked={form.roles.includes(rol)}
-                    onChange={() => alternarRol(rol)}
+                    checked={form.roles.includes(rol.valor)}
+                    onChange={() => alternarRol(rol.valor)}
                   />
-                  {rol}
+                  {rol.etiqueta}
                 </label>
               ))}
             </div>
@@ -275,7 +294,7 @@ function TrabajadoresPage() {
                   checked={form.activo}
                   onChange={(e) => setForm({ ...form, activo: e.target.checked })}
                 />
-                Trabajador activo en la empresa
+                Trabajador en estado Activo (habilitado para disponibilidad y transmisiones)
               </label>
             </div>
           )}
@@ -294,7 +313,7 @@ function TrabajadoresPage() {
                 fontWeight: "600",
               }}
             >
-              {guardando ? "Guardando..." : editandoId ? "Guardar cambios" : "Registrar trabajador"}
+              {guardando ? "Guardando..." : editandoId ? "Guardar cambios" : "Guardar registro"}
             </button>
 
             {editandoId && (
@@ -332,79 +351,75 @@ function TrabajadoresPage() {
         >
           <thead>
             <tr style={{ backgroundColor: "#eff6ff", color: "#1e3a8a", textAlign: "left" }}>
-              <th style={{ padding: "0.75rem", borderBottom: "1px solid #cbd5e1" }}>Nombre</th>
               <th style={{ padding: "0.75rem", borderBottom: "1px solid #cbd5e1" }}>RUT</th>
-              <th style={{ padding: "0.75rem", borderBottom: "1px solid #cbd5e1" }}>Contacto</th>
-              <th style={{ padding: "0.75rem", borderBottom: "1px solid #cbd5e1" }}>Roles</th>
+              <th style={{ padding: "0.75rem", borderBottom: "1px solid #cbd5e1" }}>Nombre</th>
+              <th style={{ padding: "0.75rem", borderBottom: "1px solid #cbd5e1" }}>Teléfono</th>
+              <th style={{ padding: "0.75rem", borderBottom: "1px solid #cbd5e1" }}>Roles habilitados</th>
               <th style={{ padding: "0.75rem", borderBottom: "1px solid #cbd5e1" }}>Estado</th>
-              {esDueno && (
+              {puedeEditar && (
                 <th style={{ padding: "0.75rem", borderBottom: "1px solid #cbd5e1" }}>Acción</th>
               )}
             </tr>
           </thead>
           <tbody>
-            {trabajadores.map((t) => (
-              <tr key={t.id} style={{ borderBottom: "1px solid #e2e8f0" }}>
-                <td style={{ padding: "0.75rem", fontWeight: "500" }}>{t.nombre}</td>
-                <td style={{ padding: "0.75rem" }}>{t.rut}</td>
-                <td style={{ padding: "0.75rem" }}>
-                  {t.telefono || t.email ? (
-                    <>
-                      {t.telefono && <div>{t.telefono}</div>}
-                      {t.email && <div style={{ fontSize: "0.85rem", color: "#64748b" }}>{t.email}</div>}
-                    </>
-                  ) : (
-                    "—"
-                  )}
-                </td>
-                <td style={{ padding: "0.75rem" }}>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
-                    {t.roles.map((r) => (
-                      <span
-                        key={r}
-                        style={{
-                          backgroundColor: "#dbeafe",
-                          color: "#1e40af",
-                          fontSize: "0.8rem",
-                          padding: "0.15rem 0.5rem",
-                          borderRadius: "12px",
-                        }}
-                      >
-                        {r}
-                      </span>
-                    ))}
-                  </div>
-                </td>
-                <td style={{ padding: "0.75rem" }}>
-                  <span
-                    style={{
-                      color: t.activo ? "#1e40af" : "#64748b",
-                      fontWeight: "600",
-                    }}
-                  >
-                    {t.activo ? "Activo" : "Inactivo"}
-                  </span>
-                </td>
-                {esDueno && (
+            {trabajadores.map((t) => {
+              const listaRoles = Array.isArray(t.roles)
+                ? t.roles.map((r) => (typeof r === "string" ? r : r.rolTecnico?.nombre)).filter(Boolean)
+                : [];
+              return (
+                <tr key={t.id} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                  <td style={{ padding: "0.75rem" }}>{t.rut}</td>
+                  <td style={{ padding: "0.75rem", fontWeight: "500" }}>{t.nombre}</td>
+                  <td style={{ padding: "0.75rem" }}>{t.telefono || "—"}</td>
                   <td style={{ padding: "0.75rem" }}>
-                    <button
-                      type="button"
-                      onClick={() => iniciarEdicion(t)}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+                      {listaRoles.map((r) => (
+                        <span
+                          key={r}
+                          style={{
+                            backgroundColor: "#dbeafe",
+                            color: "#1e40af",
+                            fontSize: "0.8rem",
+                            padding: "0.15rem 0.55rem",
+                            borderRadius: "12px",
+                          }}
+                        >
+                          {ETIQUETAS_ROL[r] || r}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td style={{ padding: "0.75rem" }}>
+                    <span
                       style={{
-                        backgroundColor: "#2563eb",
-                        color: "#ffffff",
-                        border: "none",
-                        padding: "0.35rem 0.75rem",
-                        borderRadius: "4px",
-                        cursor: "pointer",
+                        color: t.activo ? "#1e40af" : "#64748b",
+                        fontWeight: "600",
                       }}
                     >
-                      Editar
-                    </button>
+                      {t.activo ? "Activo" : "Inactivo"}
+                    </span>
                   </td>
-                )}
-              </tr>
-            ))}
+                  {puedeEditar && (
+                    <td style={{ padding: "0.75rem" }}>
+                      <button
+                        type="button"
+                        onClick={() => iniciarEdicion(t)}
+                        style={{
+                          backgroundColor: "#2563eb",
+                          color: "#ffffff",
+                          border: "none",
+                          padding: "0.35rem 0.75rem",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Editar
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}

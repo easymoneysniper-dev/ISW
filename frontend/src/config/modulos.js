@@ -207,6 +207,8 @@ export const modulos = [
       {
         "id": "resumen",
         "titulo": "Rentabilidad y resumen mensual",
+        "disponible": true,
+        "descripcion": "Ganancia o pérdida del mes con el detalle de ingresos y egresos.",
         "roles": [
           "DUENO",
           "CONTADOR"

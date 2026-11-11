@@ -1,69 +1,168 @@
-// Trabajadores y kits disponibles para un horario (Requisito 1.1: se muestran antes de guardar).
-// Lo usa controllers/transmision.controller.js. Habla con la BD a través de config/prisma.js.
+// Lógica de negocio para disponibilidad horaria de trabajadores (RF-11).
 const prisma = require("../config/prisma");
-const { hayConflicto } = require("../utils/horario");
 
-// Transmisiones que todavía tienen personal y kits reservados.
-const ESTADOS_QUE_RESERVAN = ["COTIZADA", "ACEPTADA", "CONFIRMADA"];
-const MARGEN_MS = 2 * 24 * 60 * 60 * 1000; // el traslado máximo es 24 h; se busca con holgura
-
-// Transmisiones que chocan con el horario pedido (incluye el tiempo de traslado).
-async function transmisionesEnConflicto(horario, excluirId) {
-  const cercanas = await prisma.transmision.findMany({
-    where: {
-      ...(excluirId && { id: { not: excluirId } }),
-      estado: { in: ESTADOS_QUE_RESERVAN },
-      inicio: { lt: new Date(horario.termino.getTime() + MARGEN_MS) },
-      termino: { gt: new Date(horario.inicio.getTime() - MARGEN_MS) },
-    },
+const includeTrabajador = {
+  trabajador: {
     select: {
       id: true,
-      inicio: true,
-      termino: true,
-      tiempoTrasladoMin: true,
-      asignaciones: { where: { estado: "ASIGNADO" }, select: { trabajadorId: true } },
-      kits: { select: { kitId: true } },
+      rut: true,
+      nombre: true,
+      telefono: true,
+      activo: true,
+      roles: {
+        include: {
+          rolTecnico: true,
+        },
+      },
     },
-  });
+  },
+};
 
-  return cercanas.filter((otra) => hayConflicto(horario, otra));
-}
-
-// Devuelve { trabajadores, kits } libres para el horario.
-// Trabajador disponible: activo, con un bloque de disponibilidad que cubre el horario
-// y sin otra transmisión que choque. Kit disponible: en condiciones de salir y sin choque.
-async function consultar({ inicio, termino, tiempoTrasladoMin = 0, excluirId }) {
-  const conflictos = await transmisionesEnConflicto({ inicio, termino, tiempoTrasladoMin }, excluirId);
-  const trabajadoresOcupados = new Set(conflictos.flatMap((t) => t.asignaciones.map((a) => a.trabajadorId)));
-  const kitsOcupados = new Set(conflictos.flatMap((t) => t.kits.map((k) => k.kitId)));
-
-  const [trabajadores, kits] = await Promise.all([
-    prisma.trabajador.findMany({
-      where: {
-        activo: true,
-        disponibilidades: { some: { inicio: { lte: inicio }, termino: { gte: termino } } },
-      },
-      select: {
-        id: true,
-        nombre: true,
-        telefono: true,
-        roles: { select: { rolTecnico: { select: { nombre: true } } } },
-      },
-      orderBy: { nombre: "asc" },
-    }),
-    prisma.kit.findMany({
-      where: { enCondiciones: true },
-      select: { id: true, nombre: true, categoria: true },
-      orderBy: { nombre: "asc" },
-    }),
-  ]);
-
+function formatearBloque(bloque) {
+  if (!bloque) return null;
   return {
-    trabajadores: trabajadores
-      .filter((trabajador) => !trabajadoresOcupados.has(trabajador.id))
-      .map(({ roles, ...trabajador }) => ({ ...trabajador, roles: roles.map((r) => r.rolTecnico.nombre) })),
-    kits: kits.filter((kit) => !kitsOcupados.has(kit.id)),
+    ...bloque,
+    trabajador: bloque.trabajador
+      ? {
+          ...bloque.trabajador,
+          roles: Array.isArray(bloque.trabajador.roles)
+            ? bloque.trabajador.roles
+                .map((r) => (typeof r === "string" ? r : r.rolTecnico?.nombre))
+                .filter(Boolean)
+            : [],
+        }
+      : undefined,
   };
 }
 
-module.exports = { consultar, transmisionesEnConflicto };
+async function listarDisponibilidades({ trabajadorId } = {}) {
+  const bloques = await prisma.disponibilidad.findMany({
+    where: trabajadorId ? { trabajadorId: Number(trabajadorId) } : undefined,
+    include: includeTrabajador,
+    orderBy: { inicio: "asc" },
+  });
+  return bloques.map(formatearBloque);
+}
+
+async function obtenerDisponibilidadPorId(id) {
+  return prisma.disponibilidad.findUnique({
+    where: { id: Number(id) },
+    include: includeTrabajador,
+  });
+}
+
+async function crearDisponibilidad(datos, usuarioId) {
+  const trabajador = await prisma.trabajador.findUnique({
+    where: { id: Number(datos.trabajadorId) },
+  });
+
+  if (!trabajador) {
+    const err = new Error("El trabajador seleccionado no existe");
+    err.status = 404;
+    throw err;
+  }
+
+  if (!trabajador.activo) {
+    const err = new Error(
+      "No se puede registrar disponibilidad para un trabajador inactivo"
+    );
+    err.status = 400;
+    throw err;
+  }
+
+  const nueva = await prisma.disponibilidad.create({
+    data: {
+      trabajadorId: trabajador.id,
+      inicio: new Date(datos.inicio),
+      termino: new Date(datos.termino),
+    },
+    include: includeTrabajador,
+  });
+
+  await prisma.registroCambio.create({
+    data: {
+      usuarioId: usuarioId || null,
+      modulo: "Personal",
+      accion: "CREAR",
+      entidad: "Disponibilidad",
+      entidadId: nueva.id,
+      detalle: `Registró disponibilidad para ${trabajador.nombre} (${new Date(datos.inicio).toISOString()} a ${new Date(datos.termino).toISOString()})`,
+    },
+  });
+
+  return formatearBloque(nueva);
+}
+
+async function actualizarDisponibilidad(id, datos, usuarioId) {
+  const existente = await obtenerDisponibilidadPorId(id);
+  if (!existente) return null;
+
+  if (!existente.trabajador.activo) {
+    const err = new Error(
+      "No se puede modificar la disponibilidad de un trabajador inactivo"
+    );
+    err.status = 400;
+    throw err;
+  }
+
+  const nuevoInicio = datos.inicio ? new Date(datos.inicio) : existente.inicio;
+  const nuevoTermino = datos.termino ? new Date(datos.termino) : existente.termino;
+
+  if (nuevoTermino <= nuevoInicio) {
+    const err = new Error("La hora de término debe ser posterior a la hora de inicio");
+    err.status = 400;
+    throw err;
+  }
+
+  const actualizada = await prisma.disponibilidad.update({
+    where: { id: Number(id) },
+    data: {
+      inicio: nuevoInicio,
+      termino: nuevoTermino,
+    },
+    include: includeTrabajador,
+  });
+
+  await prisma.registroCambio.create({
+    data: {
+      usuarioId: usuarioId || null,
+      modulo: "Personal",
+      accion: "MODIFICAR",
+      entidad: "Disponibilidad",
+      entidadId: actualizada.id,
+      detalle: `Modificó bloque de disponibilidad #${actualizada.id} de ${existente.trabajador.nombre}`,
+    },
+  });
+
+  return formatearBloque(actualizada);
+}
+
+async function eliminarDisponibilidad(id, usuarioId) {
+  const existente = await obtenerDisponibilidadPorId(id);
+  if (!existente) return null;
+
+  await prisma.disponibilidad.delete({
+    where: { id: Number(id) },
+  });
+
+  await prisma.registroCambio.create({
+    data: {
+      usuarioId: usuarioId || null,
+      modulo: "Personal",
+      accion: "ELIMINAR",
+      entidad: "Disponibilidad",
+      entidadId: Number(id),
+      detalle: `Eliminó bloque de disponibilidad #${id} de ${existente.trabajador.nombre}`,
+    },
+  });
+
+  return formatearBloque(existente);
+}
+
+module.exports = {
+  listarDisponibilidades,
+  obtenerDisponibilidadPorId,
+  crearDisponibilidad,
+  actualizarDisponibilidad,
+  eliminarDisponibilidad,
+};

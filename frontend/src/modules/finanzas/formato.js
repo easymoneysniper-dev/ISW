@@ -37,6 +37,27 @@ export const NOMBRE_CATEGORIA_GASTO = {
   OTRO: "Otro",
 };
 
+export const NOMBRE_MES = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+];
+
+// Mes y año de hoy, para que las pantallas partan en el mes actual.
+export function periodoActual() {
+  const hoy = new Date();
+  return { anio: hoy.getFullYear(), mes: hoy.getMonth() + 1 };
+}
+
 // Estilos comunes de los formularios de Finanzas.
 export const ESTILO_CAMPO = {
   display: "flex",
