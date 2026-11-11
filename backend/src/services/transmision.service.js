@@ -1,7 +1,7 @@
 // Reglas y consultas de transmisiones: registro, consulta, calendario y requerimientos
 // (Requisitos 1.1, 1.2, 1.8 y 1.12). Los cambios de estado están en transmisionEstado.service.js.
 // Lo usa controllers/transmision.controller.js. Habla con la BD a través de config/prisma.js.
-// Si una regla no se cumple, devuelve { error, status } en vez de lanzar un error.
+// Si una regla no se cumple, lanza un error (utils/errores.js) y lo responde error.middleware.js.
 const prisma = require("../config/prisma");
 const auditoria = require("./auditoria.service");
 const { calcularCotizacion, recalcular } = require("./cotizacion.service");
@@ -9,13 +9,14 @@ const { sincronizarEstados } = require("./transmisionEstado.service");
 const pagoService = require("./pago.service");
 const { fechaChile } = require("../utils/horario");
 const { formatearTransmision: formatear } = require("../utils/formato");
+const { noEncontrado, conflicto, datosInvalidos } = require("../utils/errores");
 
 const ESTADOS_MODIFICABLES = ["ACEPTADA", "CONFIRMADA"];
 
-const errorPrecio = (precio) => ({
-  error: `El ajuste deja el precio cotizado en $${precio}; debe ser mayor que cero`,
-  status: 400,
-});
+// El ajuste negociado puede ser negativo, pero el precio final debe quedar sobre cero.
+function exigirPrecioPositivo(precio) {
+  if (precio <= 0) throw datosInvalidos(`El ajuste deja el precio cotizado en $${precio}; debe ser mayor que cero`);
+}
 
 // GET /api/transmisiones: todas (o las de un estado), de la más próxima a la más lejana.
 async function listar({ estado } = {}) {
@@ -45,7 +46,7 @@ async function obtener(id) {
       kits: { include: { kit: { select: { id: true, nombre: true, categoria: true } } } },
     },
   });
-  if (!transmision) return null;
+  if (!transmision) throw noEncontrado("Transmisión no encontrada");
 
   const pagos = await pagoService.resumenPorTransmision(id);
 
@@ -101,11 +102,11 @@ async function calendario(mes) {
 async function crear(datos, usuarioId) {
   const { cliente: nuevoCliente, clienteId, ...campos } = datos;
   const cotizacion = calcularCotizacion(campos); // al registrar aún no tiene kits (Requisito 3.5)
-  if (cotizacion.precioCotizado <= 0) return errorPrecio(cotizacion.precioCotizado);
+  exigirPrecioPositivo(cotizacion.precioCotizado);
 
   if (clienteId) {
     const existe = await prisma.cliente.findUnique({ where: { id: clienteId }, select: { id: true } });
-    if (!existe) return { error: "El cliente indicado no existe", status: 404 };
+    if (!existe) throw noEncontrado("El cliente indicado no existe");
   }
 
   return prisma.$transaction(async (tx) => {
@@ -138,16 +139,13 @@ async function modificarRequerimientos(id, cambios, usuarioId) {
     where: { id },
     include: { kits: { select: { recargoAplicado: true } } },
   });
-  if (!actual) return { error: "Transmisión no encontrada", status: 404 };
+  if (!actual) throw noEncontrado("Transmisión no encontrada");
   if (!ESTADOS_MODIFICABLES.includes(actual.estado)) {
-    return {
-      error: `Solo se modifican transmisiones Aceptadas o Confirmadas (estado actual: ${actual.estado})`,
-      status: 409,
-    };
+    throw conflicto(`Solo se modifican transmisiones Aceptadas o Confirmadas (estado actual: ${actual.estado})`);
   }
 
   const nueva = calcularCotizacion({ ...actual, ...cambios, recargos: actual.kits.map((k) => k.recargoAplicado) });
-  if (nueva.precioCotizado <= 0) return errorPrecio(nueva.precioCotizado);
+  exigirPrecioPositivo(nueva.precioCotizado);
 
   const advertencias = [];
   if (actual.estado === "CONFIRMADA" && nueva.requiereAdelanto && !(await pagoService.adelantoRecibido(id))) {
