@@ -1,6 +1,8 @@
 // Reglas y consultas de los costos fijos del mes (M4, requisito 4.3).
 // Lo usan costoFijo.controller.js y reporte.service.js (resumen mensual, requisito 4.7).
+// Si una regla no se cumple, lanza un error de negocio y lo responde error.middleware.js.
 const prisma = require("../config/prisma");
+const { noEncontrado, conflicto } = require("../utils/errores");
 
 // TEMPORAL: cambiar por auditoriaService.registrar(...) cuando exista (RF-48).
 function registrarCambio(usuarioId, accion, entidadId, detalle) {
@@ -26,7 +28,7 @@ async function listarPorPeriodo(anio, mes) {
   };
 }
 
-// Registra un costo fijo. No se repite el mismo nombre en el mismo mes y año (MER final).
+// Registra un costo fijo y lo devuelve. No se repite el mismo nombre en el mismo mes y año (MER final).
 async function registrar(datos, usuarioId = null) {
   const repetido = await prisma.costoFijo.findFirst({
     where: {
@@ -37,10 +39,7 @@ async function registrar(datos, usuarioId = null) {
   });
 
   if (repetido) {
-    return {
-      error: `Ya existe el costo fijo "${repetido.nombre}" en ${datos.mes}/${datos.anio}`,
-      status: 409,
-    };
+    throw conflicto(`Ya existe el costo fijo "${repetido.nombre}" en ${datos.mes}/${datos.anio}`);
   }
 
   const costo = await prisma.costoFijo.create({ data: datos });
@@ -52,15 +51,15 @@ async function registrar(datos, usuarioId = null) {
     `Costo fijo "${costo.nombre}" de $${costo.monto} en ${costo.mes}/${costo.anio}`
   );
 
-  return { costo: { ...costo, monto: Number(costo.monto) } };
+  return { ...costo, monto: Number(costo.monto) };
 }
 
-// Elimina un costo fijo (por ejemplo, si se ingresó en el mes equivocado).
+// Elimina un costo fijo (por ejemplo, si se ingresó en el mes equivocado). 404 si no existe.
 async function eliminar(id, usuarioId = null) {
   const costo = await prisma.costoFijo.findUnique({ where: { id } });
 
   if (!costo) {
-    return { error: "El costo fijo no existe", status: 404 };
+    throw noEncontrado("El costo fijo no existe");
   }
 
   await prisma.costoFijo.delete({ where: { id } });
@@ -72,7 +71,7 @@ async function eliminar(id, usuarioId = null) {
     `Costo fijo "${costo.nombre}" de $${costo.monto} en ${costo.mes}/${costo.anio}`
   );
 
-  return { costo };
+  return costo;
 }
 
 module.exports = {
