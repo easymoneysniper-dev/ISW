@@ -54,9 +54,17 @@ async function actualizar(req, res, next) {
   }
 }
 
+// GET /api/trabajadores/:id/historial?desde=AAAA-MM-DD&hasta=AAAA-MM-DD   (Requisito 2.4)
+// Sin try/catch: si el service lanza un error, lo responde error.middleware.js.
+async function historial(req, res) {
+  res.json(await trabajadorService.historialTrabajador(req.params.id, req.datosQuery));
+}
+
+
 module.exports = {
   listar,
   obtener,
   crear,
   actualizar,
+  historial,
 };

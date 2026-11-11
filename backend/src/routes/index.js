@@ -7,10 +7,14 @@ const transmisionRoutes = require("./transmision.routes");
 const clienteRoutes = require("./cliente.routes");
 const trabajadorRoutes = require("./trabajador.routes");
 const equipoRoutes = require("./equipo.routes");
+const disponibilidadRoutes = require("./disponibilidad.routes");
+const asignacionRoutes = require("./asignacion.routes");
+const auditoriaRoutes = require("./auditoria.routes");
 const pagoRoutes = require("./pago.routes");
 const gastoRoutes = require("./gasto.routes");
 const costoFijoRoutes = require("./costoFijo.routes");
 const reporteRoutes = require("./reporte.routes");
+
 
 const router = Router();
 
@@ -20,9 +24,13 @@ router.use("/transmisiones", transmisionRoutes); // /api/transmisiones
 router.use("/clientes", clienteRoutes); // /api/clientes (RF 1.9–1.11)
 router.use("/trabajadores", trabajadorRoutes); // /api/trabajadores
 router.use("/equipos", equipoRoutes); // RF 3.1
+router.use("/disponibilidades", disponibilidadRoutes);
+router.use("/asignaciones", asignacionRoutes);
 router.use("/pagos", pagoRoutes); // /api/pagos
 router.use("/gastos", gastoRoutes); // /api/gastos
 router.use("/costos-fijos", costoFijoRoutes); // /api/costos-fijos
 router.use("/reportes", reporteRoutes); // /api/reportes
+router.use("/auditoria", auditoriaRoutes);
+
 
 module.exports = router;
