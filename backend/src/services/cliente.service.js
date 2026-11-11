@@ -1,8 +1,9 @@
 // Reglas y consultas de clientes (Requisitos 1.9, 1.10 y 1.11).
 // Lo usa controllers/cliente.controller.js. Habla con la BD a través de config/prisma.js.
-// Si una regla no se cumple, devuelve { error, status } en vez de lanzar un error.
+// Si una regla no se cumple, lanza un error (utils/errores.js) y lo responde error.middleware.js.
 const prisma = require("../config/prisma");
 const auditoria = require("./auditoria.service");
+const { noEncontrado, datosInvalidos, conflicto } = require("../utils/errores");
 
 const conTransmisiones = { _count: { select: { transmisiones: true } } };
 const VERBOS = { CREAR: "Registró", EDITAR: "Modificó", ELIMINAR: "Eliminó" };
@@ -36,8 +37,8 @@ function listar(buscar) {
 }
 
 // Ficha del cliente con sus transmisiones (la más próxima primero).
-function obtener(id) {
-  return prisma.cliente.findUnique({
+async function obtener(id) {
+  const cliente = await prisma.cliente.findUnique({
     where: { id },
     include: {
       transmisiones: {
@@ -46,6 +47,8 @@ function obtener(id) {
       },
     },
   });
+  if (!cliente) throw noEncontrado("Cliente no encontrado");
+  return cliente;
 }
 
 // Requisito 1.9: el schema ya exigió nombre y al menos un contacto.
@@ -53,43 +56,42 @@ function crear(datos, usuarioId) {
   return prisma.$transaction(async (tx) => {
     const cliente = await tx.cliente.create({ data: datos });
     await auditar(tx, usuarioId, "CREAR", cliente);
-    return { cliente };
+    return cliente;
   });
 }
 
 // Requisito 1.10: el cliente debe conservar su nombre y al menos un contacto.
 async function editar(id, cambios, usuarioId) {
   const actual = await prisma.cliente.findUnique({ where: { id } });
-  if (!actual) return { error: "Cliente no encontrado", status: 404 };
+  if (!actual) throw noEncontrado("Cliente no encontrado");
 
   const resultado = { ...actual, ...cambios };
   if (!resultado.telefono && !resultado.email) {
-    return { error: "El cliente debe conservar al menos un dato de contacto (teléfono o correo)", status: 400 };
+    throw datosInvalidos("El cliente debe conservar al menos un dato de contacto (teléfono o correo)");
   }
 
   return prisma.$transaction(async (tx) => {
     const cliente = await tx.cliente.update({ where: { id }, data: cambios });
     await auditar(tx, usuarioId, "EDITAR", cliente);
-    return { cliente };
+    return cliente;
   });
 }
 
 // Requisito 1.11: solo se elimina si no tiene transmisiones asociadas.
 async function eliminar(id, usuarioId) {
   const cliente = await prisma.cliente.findUnique({ where: { id }, include: conTransmisiones });
-  if (!cliente) return { error: "Cliente no encontrado", status: 404 };
+  if (!cliente) throw noEncontrado("Cliente no encontrado");
 
   if (cliente._count.transmisiones > 0) {
-    return {
-      error: `No se puede eliminar: el cliente tiene ${cliente._count.transmisiones} transmisión(es) asociada(s)`,
-      status: 409,
-    };
+    throw conflicto(
+      `No se puede eliminar: el cliente tiene ${cliente._count.transmisiones} transmisión(es) asociada(s)`
+    );
   }
 
   return prisma.$transaction(async (tx) => {
     await auditar(tx, usuarioId, "ELIMINAR", cliente);
     await tx.cliente.delete({ where: { id } });
-    return { cliente };
+    return cliente;
   });
 }
 

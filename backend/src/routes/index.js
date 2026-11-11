@@ -12,7 +12,8 @@ const asignacionRoutes = require("./asignacion.routes");
 const auditoriaRoutes = require("./auditoria.routes");
 const pagoRoutes = require("./pago.routes");
 const gastoRoutes = require("./gasto.routes");
-
+const costoFijoRoutes = require("./costoFijo.routes");
+const reporteRoutes = require("./reporte.routes");
 
 
 const router = Router();
@@ -27,6 +28,8 @@ router.use("/disponibilidades", disponibilidadRoutes);
 router.use("/asignaciones", asignacionRoutes);
 router.use("/pagos", pagoRoutes); // /api/pagos
 router.use("/gastos", gastoRoutes); // /api/gastos
+router.use("/costos-fijos", costoFijoRoutes); // /api/costos-fijos
+router.use("/reportes", reporteRoutes); // /api/reportes
 router.use("/auditoria", auditoriaRoutes);
 
 

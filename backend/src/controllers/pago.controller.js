@@ -1,16 +1,12 @@
 // Recibe las peticiones de pagos, llama al service y responde.
 // Lo usa routes/pago.routes.js y llama a services/pago.service.js.
-const fs = require("fs");
+// Si el service lanza un error, Express 5 lo pasa a error.middleware.js, que responde.
+// Si el pago no se guarda, comprobante.middleware.js borra el archivo subido.
 const pagoService = require("../services/pago.service");
 
 // GET /api/pagos/transmision/:transmisionId
 async function resumenPorTransmision(req, res) {
-  const resumen = await pagoService.resumenPorTransmision(req.params.transmisionId);
-
-  if (!resumen) {
-    return res.status(404).json({ message: "Transmisión no encontrada" });
-  }
-
+  const resumen = await pagoService.obtenerResumen(req.params.transmisionId);
   res.json(resumen);
 }
 
@@ -18,15 +14,8 @@ async function resumenPorTransmision(req, res) {
 async function registrar(req, res) {
   const usuarioId = req.session.usuario?.id ?? null;
   const datos = { ...req.body, comprobanteArchivo: req.file.filename };
-  const resultado = await pagoService.registrar(datos, usuarioId);
-
-  if (resultado.error) {
-    // El pago no se guardó: se borra el comprobante para no dejar archivos sueltos.
-    await fs.promises.unlink(req.file.path).catch(() => {});
-    return res.status(resultado.status).json({ message: resultado.error });
-  }
-
-  res.status(201).json(resultado.pago);
+  const pago = await pagoService.registrar(datos, usuarioId);
+  res.status(201).json(pago);
 }
 
 module.exports = {

@@ -4,12 +4,13 @@
 //   ACEPTADA | CONFIRMADA → CANCELADA          (1.7 cancelación)
 //   CONFIRMADA → REALIZADA → RENDIDA → CERRADA (1.5 automáticos)
 // Lo usan controllers/transmision.controller.js y transmision.service.js.
-// Si una regla no se cumple, devuelve { error, status } en vez de lanzar un error.
+// Si una regla no se cumple, lanza un error (utils/errores.js) y lo responde error.middleware.js.
 const prisma = require("../config/prisma");
 const auditoria = require("./auditoria.service");
 const pagoService = require("./pago.service");
 const { recalcular } = require("./cotizacion.service");
 const { formatearTransmision } = require("../utils/formato");
+const { noEncontrado, conflicto, datosInvalidos } = require("../utils/errores");
 
 const ESTADOS_MODIFICABLES = ["ACEPTADA", "CONFIRMADA"];
 const SIETE_DIAS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -21,14 +22,19 @@ const NOMBRE_ESTADO = {
 // Antes de cada acción se ponen al día los estados automáticos (una Confirmada ya terminada es Realizada).
 async function buscar(id) {
   await sincronizarEstados();
-  return prisma.transmision.findUnique({ where: { id } });
+  const transmision = await prisma.transmision.findUnique({ where: { id } });
+  if (!transmision) throw noEncontrado("Transmisión no encontrada");
+  return transmision;
 }
 
-const noEncontrada = { error: "Transmisión no encontrada", status: 404 };
-const estadoInvalido = (permitidos, actual) => ({
-  error: `Esta acción solo se permite en estado ${permitidos.map((e) => NOMBRE_ESTADO[e]).join(" o ")} (estado actual: ${NOMBRE_ESTADO[actual]})`,
-  status: 409,
-});
+// Lanza 409 si la transmisión no está en uno de los estados permitidos para la acción.
+function exigirEstado(transmision, permitidos) {
+  if (!permitidos.includes(transmision.estado)) {
+    throw conflicto(
+      `Esta acción solo se permite en estado ${permitidos.map((e) => NOMBRE_ESTADO[e]).join(" o ")} (estado actual: ${NOMBRE_ESTADO[transmision.estado]})`
+    );
+  }
+}
 
 // Libera el personal y los kits reservados (Requisitos 1.3, 1.6 y 1.7).
 async function liberarRecursos(tx, transmisionId) {
@@ -52,8 +58,7 @@ async function cambiarEstado(tx, transmision, datos, usuarioId, detalle) {
 // Requisito 1.3: el cliente acepta o rechaza la cotización.
 async function responder(id, respuesta, usuarioId) {
   const transmision = await buscar(id);
-  if (!transmision) return noEncontrada;
-  if (transmision.estado !== "COTIZADA") return estadoInvalido(["COTIZADA"], transmision.estado);
+  exigirEstado(transmision, ["COTIZADA"]);
 
   return prisma.$transaction(async (tx) => {
     const advertencias = [];
@@ -69,15 +74,13 @@ async function responder(id, respuesta, usuarioId) {
 // Requisito 1.4: confirma una transmisión Aceptada; si requiere adelanto, debe estar recibido.
 async function confirmar(id, usuarioId) {
   const transmision = await buscar(id);
-  if (!transmision) return noEncontrada;
-  if (transmision.estado !== "ACEPTADA") return estadoInvalido(["ACEPTADA"], transmision.estado);
+  exigirEstado(transmision, ["ACEPTADA"]);
 
   if (transmision.requiereAdelanto && !(await pagoService.adelantoRecibido(id))) {
     const pagos = await pagoService.resumenPorTransmision(id);
-    return {
-      error: `Requiere un adelanto del 50 % ($${pagos.adelantoMinimo}) y el Contador ha registrado $${pagos.totalPagado}`,
-      status: 409,
-    };
+    throw conflicto(
+      `Requiere un adelanto del 50 % ($${pagos.adelantoMinimo}) y el Contador ha registrado $${pagos.totalPagado}`
+    );
   }
 
   return prisma.$transaction(async (tx) => {
@@ -89,10 +92,7 @@ async function confirmar(id, usuarioId) {
 // Requisito 1.6: cambia fecha y horario; libera personal y kits para asignarlos otra vez.
 async function reprogramar(id, { inicio, termino }, usuarioId) {
   const transmision = await buscar(id);
-  if (!transmision) return noEncontrada;
-  if (!ESTADOS_MODIFICABLES.includes(transmision.estado)) {
-    return estadoInvalido(ESTADOS_MODIFICABLES, transmision.estado);
-  }
+  exigirEstado(transmision, ESTADOS_MODIFICABLES);
 
   return prisma.$transaction(async (tx) => {
     const liberados = await liberarRecursos(tx, id);
@@ -116,18 +116,14 @@ async function reprogramar(id, { inicio, termino }, usuarioId) {
 // Requisito 1.7: cancela con motivo; si hubo adelanto, exige decidir si se retiene o se devuelve.
 async function cancelar(id, { motivo, decisionAdelanto }, usuarioId) {
   const transmision = await buscar(id);
-  if (!transmision) return noEncontrada;
-  if (!ESTADOS_MODIFICABLES.includes(transmision.estado)) {
-    return estadoInvalido(ESTADOS_MODIFICABLES, transmision.estado);
-  }
+  exigirEstado(transmision, ESTADOS_MODIFICABLES);
 
   const pagos = await pagoService.resumenPorTransmision(id);
   const huboAdelanto = pagos.totalPagado > 0;
   if (huboAdelanto && !decisionAdelanto) {
-    return {
-      error: `Hay $${pagos.totalPagado} pagados: indica si el adelanto se retiene o se devuelve (decisionAdelanto: RETENER o DEVOLVER)`,
-      status: 400,
-    };
+    throw datosInvalidos(
+      `Hay $${pagos.totalPagado} pagados: indica si el adelanto se retiene o se devuelve (decisionAdelanto: RETENER o DEVOLVER)`
+    );
   }
 
   const advertencias = [];
