@@ -80,6 +80,22 @@ test("1.3: solo se responde una transmisión Cotizada", async () => {
     findMany: async () => [],
     findUnique: async () => ({ id: 1, estado: "ACEPTADA" }),
   };
-  const resultado = await estado.responder(1, "ACEPTADA", 1);
-  assert.equal(resultado.status, 409);
+  await assert.rejects(estado.responder(1, "ACEPTADA", 1), { name: "ErrorNegocio", status: 409 });
+});
+
+test("1.4: no se confirma sin el adelanto cuando lo requiere", async () => {
+  prisma.transmision = {
+    findMany: async () => [],
+    findUnique: async () => ({ id: 2, estado: "ACEPTADA", requiereAdelanto: true, precioCotizado: "300000", termino: new Date(), pagos: [] }),
+  };
+  await assert.rejects(estado.confirmar(2, 1), { status: 409, message: /adelanto del 50 % \(\$150000\)/ });
+});
+
+test("error.middleware responde los errores de negocio con su código", () => {
+  const { manejarErrores } = require("../src/middlewares/error.middleware");
+  const { conflicto } = require("../src/utils/errores");
+  let respuesta;
+  const res = { status(codigo) { respuesta = { codigo }; return this; }, json(cuerpo) { respuesta.cuerpo = cuerpo; } };
+  manejarErrores(conflicto("Ya está confirmada"), {}, res, () => {});
+  assert.deepEqual(respuesta, { codigo: 409, cuerpo: { message: "Ya está confirmada" } });
 });

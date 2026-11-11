@@ -1,15 +1,13 @@
 // Recibe las peticiones de transmisiones, llama a los services y responde.
 // Lo usa routes/transmision.routes.js. Llama a transmision.service.js,
-// transmisionEstado.service.js y disponibilidad.service.js.
+// transmisionEstado.service.js y recursosDisponibles.service.js.
+// Los errores de negocio los lanzan los services y los responde error.middleware.js.
 const transmisionService = require("../services/transmision.service");
 const estadoService = require("../services/transmisionEstado.service");
-const disponibilidadService = require("../services/disponibilidad.service");
+const recursosService = require("../services/recursosDisponibles.service");
 
-// Responde el error de una regla de negocio, o la transmisión con sus advertencias.
+// Responde la transmisión junto con sus advertencias (avisos que no impiden la acción).
 function responder(res, resultado, statusOk = 200) {
-  if (resultado.error) {
-    return res.status(resultado.status).json({ message: resultado.error });
-  }
   res.status(statusOk).json({ ...resultado.transmision, advertencias: resultado.advertencias });
 }
 
@@ -27,14 +25,12 @@ async function calendario(req, res) {
 
 // GET /api/transmisiones/disponibilidad?inicio=...&termino=...&tiempoTrasladoMin=60   (Requisito 1.1)
 async function disponibilidad(req, res) {
-  res.json(await disponibilidadService.consultar(req.datosQuery));
+  res.json(await recursosService.consultar(req.datosQuery));
 }
 
 // GET /api/transmisiones/:id   (ficha, Requisito 1.8)
 async function obtener(req, res) {
-  const transmision = await transmisionService.obtener(req.params.id);
-  if (!transmision) return res.status(404).json({ message: "Transmisión no encontrada" });
-  res.json(transmision);
+  res.json(await transmisionService.obtener(req.params.id));
 }
 
 // POST /api/transmisiones   (Requisitos 1.1 y 1.2)

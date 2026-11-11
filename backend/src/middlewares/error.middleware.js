@@ -1,5 +1,7 @@
 // Manejo central de errores (Clase 3). Va al final de app.js.
 // En Express 5, si un controller async lanza un error, llega aquí solo.
+// Es el ÚNICO lugar que arma respuestas de error (ayudantía 6).
+const { ErrorNegocio } = require("../utils/errores");
 
 // Ruta que no existe dentro de /api -> 404 en JSON.
 function rutaNoEncontrada(req, res) {
@@ -12,6 +14,11 @@ function manejarErrores(error, req, res, next) {
   // JSON mal escrito en el body.
   if (error.type === "entity.parse.failed") {
     return res.status(400).json({ message: "El cuerpo de la petición no es un JSON válido" });
+  }
+
+  // Reglas de negocio que lanzan los services (utils/errores.js).
+  if (error instanceof ErrorNegocio) {
+    return res.status(error.status).json({ message: error.message });
   }
 
   // Errores de Prisma.
