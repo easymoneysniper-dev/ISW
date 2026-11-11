@@ -2,7 +2,8 @@
 const { Router } = require("express");
 const disponibilidadController = require("../controllers/disponibilidad.controller");
 const { requireAuth, requireRol } = require("../middlewares/auth.middleware");
-const { validate } = require("../middlewares/validate.middleware");
+const validate = require("../middlewares/validate.middleware");
+
 const {
   crearDisponibilidadSchema,
   actualizarDisponibilidadSchema,

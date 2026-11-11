@@ -2,7 +2,7 @@
 const { Router } = require("express");
 const asignacionController = require("../controllers/asignacion.controller");
 const { requireAuth, requireRol } = require("../middlewares/auth.middleware");
-const { validate } = require("../middlewares/validate.middleware");
+const validate = require("../middlewares/validate.middleware");
 const {
   crearAsignacionSchema,
   definirComisionSchema,
@@ -10,6 +10,7 @@ const {
   retirarAsignacionSchema,
   registrarAsistenciaSchema,
   registrarCamarasSchema,
+  liquidarComisionSchema,
 } = require("../schemas/asignacion.schema");
 
 const router = Router();
@@ -63,5 +64,14 @@ router.patch(
   validate(registrarCamarasSchema),
   asignacionController.actualizarCamaras
 );
+
+
+router.patch(
+  "/:id/liquidar",
+  requireRol("CONTADOR"),
+  validate(liquidarComisionSchema),
+  asignacionController.liquidar
+);
+
 
 module.exports = router;

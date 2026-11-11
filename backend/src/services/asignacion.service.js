@@ -1,5 +1,7 @@
 // Lógica de negocio para asignación, comisiones, reemplazos, retiros y asistencia (RF-12 a RF-16).
 const prisma = require("../config/prisma");
+const auditoria = require("./auditoria.service");
+const { noEncontrado, conflicto } = require("../utils/errores");
 
 const TIEMPO_TRASLADO_DEFECTO_MIN = 60;
 
@@ -691,6 +693,60 @@ async function actualizarCamarasUtilizadas(transmisionId, camarasUtilizadas, usu
   });
 
   return actualizada;
+}
+
+// Requisito 2.10: el Contador registra la fecha de pago de la comisión de un trabajador.
+// Solo si la transmisión está Rendida, el trabajador quedó asignado con asistencia confirmada,
+// tiene porcentaje definido y la comisión aún no se liquida.
+async function liquidarComision(asignacionId, fechaLiquidacion, usuarioId) {
+  const asignacion = await prisma.asignacion.findUnique({
+    where: { id: asignacionId },
+    include: {
+      transmision: { select: { id: true, nombreEvento: true, estado: true, precioCotizado: true } },
+      trabajador: { select: { nombre: true } },
+    },
+  });
+  if (!asignacion) throw noEncontrado("Asignación no encontrada");
+ 
+  if (asignacion.transmision.estado !== "RENDIDA") {
+    throw conflicto(
+      `Solo se liquidan comisiones de transmisiones Rendidas (estado actual: ${asignacion.transmision.estado})`
+    );
+  }
+  if (asignacion.estado !== "ASIGNADO" || asignacion.asistencia !== "ASISTIO") {
+    throw conflicto("Solo se liquida la comisión de un trabajador asignado con asistencia confirmada");
+  }
+  if (asignacion.porcentajeComision === null) {
+    throw conflicto("La asignación no tiene porcentaje de comisión definido (Requisito 2.5)");
+  }
+  if (asignacion.fechaLiquidacion) throw conflicto("Esta comisión ya fue liquidada");
+ 
+  const porcentaje = Number(asignacion.porcentajeComision);
+  const monto = Math.round((Number(asignacion.transmision.precioCotizado) * porcentaje) / 100);
+ 
+  const actualizada = await prisma.$transaction(async (tx) => {
+    const resultado = await tx.asignacion.update({
+      where: { id: asignacionId },
+      data: { fechaLiquidacion },
+    });
+    await auditoria.registrar(tx, {
+      usuarioId,
+      modulo: "M2",
+      accion: "LIQUIDAR",
+      entidad: "Asignacion",
+      entidadId: asignacionId,
+      detalle: `Liquidó la comisión de ${asignacion.trabajador.nombre} ($${monto}, ${porcentaje} %) de ${asignacion.transmision.nombreEvento}`,
+    });
+    return resultado;
+  });
+ 
+  return {
+    asignacionId,
+    trabajador: asignacion.trabajador.nombre,
+    porcentajeComision: porcentaje,
+    montoComision: monto,
+    fechaLiquidacion: actualizada.fechaLiquidacion,
+  };
 }
 
 module.exports = {

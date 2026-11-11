@@ -89,6 +89,15 @@ const registrarCamarasSchema = z.object({
     .nullable(),
 });
 
+// Requisito 2.10: PATCH /api/asignaciones/:id/liquidar   body: { "fechaLiquidacion": "2026-12-20" }
+const liquidarComisionSchema = z.object({
+  fechaLiquidacion: z
+    .string({ required_error: "Indica la fecha de pago como AAAA-MM-DD" })
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Indica la fecha de pago como AAAA-MM-DD")
+    .transform((valor) => new Date(`${valor}T00:00:00.000Z`))
+    .refine((fecha) => fecha <= new Date(), "La fecha de pago no puede ser futura"),
+});
+
 module.exports = {
   crearAsignacionSchema,
   definirComisionSchema,
@@ -96,4 +105,5 @@ module.exports = {
   retirarAsignacionSchema,
   registrarAsistenciaSchema,
   registrarCamarasSchema,
+  liquidarComisionSchema,
 };

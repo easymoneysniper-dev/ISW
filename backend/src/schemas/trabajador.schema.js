@@ -53,8 +53,31 @@ const actualizarTrabajadorSchema = crearTrabajadorSchema.partial().refine(
   }
 );
 
+// Requisito 2.4: GET /api/trabajadores/:id/historial?desde=2026-11-01&hasta=2026-11-30
+const fechaDia = z
+  .string({ required_error: "Indica la fecha como AAAA-MM-DD" })
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Indica la fecha como AAAA-MM-DD")
+  .transform((valor) => new Date(`${valor}T00:00:00-03:00`));
+ 
+const historialQuerySchema = z
+  .object({
+    desde: fechaDia,
+    hasta: fechaDia.transform((dia) => new Date(dia.getTime() + 24 * 60 * 60 * 1000)), // incluye ese día
+  })
+  .refine((datos) => datos.hasta > datos.desde, {
+    message: "La fecha final debe ser igual o posterior a la inicial",
+    path: ["hasta"],
+  });
+ 
+const idTrabajadorSchema = z.object({
+  id: z.coerce.number({ error: "El id debe ser un número" }).int().positive(),
+});
+
+
 module.exports = {
   ROLES_VALIDOS,
   crearTrabajadorSchema,
   actualizarTrabajadorSchema,
+  historialQuerySchema,
+  idTrabajadorSchema,
 };

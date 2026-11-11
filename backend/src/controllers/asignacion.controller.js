@@ -139,6 +139,18 @@ async function actualizarCamaras(req, res, next) {
   }
 }
 
+// PATCH /api/asignaciones/:id/liquidar   (Requisito 2.10)
+// Sin try/catch: si el service lanza un error, lo responde error.middleware.js.
+async function liquidar(req, res) {
+  const resultado = await asignacionService.liquidarComision(
+    Number(req.params.id),
+    req.body.fechaLiquidacion,
+    req.session.usuario.id
+  );
+  res.json(resultado);
+}
+
+
 module.exports = {
   obtenerPorTransmision,
   crear,
@@ -147,4 +159,5 @@ module.exports = {
   retirar,
   actualizarAsistencia,
   actualizarCamaras,
+  liquidar,
 };

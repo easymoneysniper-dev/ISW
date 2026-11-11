@@ -9,8 +9,10 @@ const trabajadorRoutes = require("./trabajador.routes");
 const equipoRoutes = require("./equipo.routes");
 const disponibilidadRoutes = require("./disponibilidad.routes");
 const asignacionRoutes = require("./asignacion.routes");
+const auditoriaRoutes = require("./auditoria.routes");
 const pagoRoutes = require("./pago.routes");
 const gastoRoutes = require("./gasto.routes");
+
 
 
 const router = Router();
@@ -25,6 +27,7 @@ router.use("/disponibilidades", disponibilidadRoutes);
 router.use("/asignaciones", asignacionRoutes);
 router.use("/pagos", pagoRoutes); // /api/pagos
 router.use("/gastos", gastoRoutes); // /api/gastos
+router.use("/auditoria", auditoriaRoutes);
 
 
 module.exports = router;

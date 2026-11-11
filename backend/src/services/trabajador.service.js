@@ -1,5 +1,6 @@
 // Lógica de negocio para el registro y gestión de trabajadores (RF-10).
 const prisma = require("../config/prisma");
+const { noEncontrado, conflicto } = require("../utils/errores");
 
 const includeRoles = {
   roles: {
@@ -85,6 +86,24 @@ async function actualizarTrabajador(id, datos, usuarioId) {
     where: { id: trabajadorId },
   });
   if (!existente) return null;
+  
+  if (datos.activo === false && existente.activo) {
+    const pendientes = await prisma.asignacion.count({
+      where: {
+        trabajadorId,
+        estado: "ASIGNADO",
+        transmision: {
+          inicio: { gt: new Date() },
+          estado: { in: ["COTIZADA", "ACEPTADA", "CONFIRMADA"] },
+        },
+      },
+    });
+    if (pendientes > 0) {
+      throw conflicto(
+        `No se puede desactivar: tiene ${pendientes} asignación(es) en transmisiones futuras. Reemplázalo o retíralo primero (Requisitos 2.2 y 2.9)`
+      );
+    }
+  }
 
   const actualizadoRaw = await prisma.trabajador.update({
     where: { id: trabajadorId },
@@ -120,9 +139,61 @@ async function actualizarTrabajador(id, datos, usuarioId) {
   return actualizado;
 }
 
+// Requisito 2.4: transmisiones y comisiones de un trabajador en un período.
+// Solo aparecen aquellas en que fue asignado, reemplazado o tuvo asistencia confirmada.
+async function historialTrabajador(id, { desde, hasta }) {
+  const trabajador = await prisma.trabajador.findUnique({
+    where: { id },
+    select: { id: true, rut: true, nombre: true },
+  });
+  if (!trabajador) throw noEncontrado("Trabajador no encontrado");
+ 
+  const asignaciones = await prisma.asignacion.findMany({
+    where: {
+      trabajadorId: id,
+      transmision: { inicio: { gte: desde, lt: hasta } },
+      OR: [{ estado: { in: ["ASIGNADO", "REEMPLAZADO"] } }, { asistencia: "ASISTIO" }],
+    },
+    include: {
+      transmision: { select: { id: true, nombreEvento: true, inicio: true, estado: true, precioCotizado: true } },
+      roles: { select: { rolTecnico: { select: { nombre: true } } } },
+    },
+    orderBy: { transmision: { inicio: "desc" } },
+  });
+ 
+  const participaciones = asignaciones.map((a) => {
+    const porcentaje = a.porcentajeComision === null ? null : Number(a.porcentajeComision);
+    const devenga = a.estado === "ASIGNADO" && a.asistencia === "ASISTIO" && porcentaje !== null;
+    const { precioCotizado, ...transmision } = a.transmision;
+    return {
+      asignacionId: a.id,
+      transmision,
+      roles: a.roles.map((r) => r.rolTecnico.nombre),
+      estadoAsignacion: a.estado,
+      asistencia: a.asistencia,
+      porcentajeComision: porcentaje,
+      montoComision: devenga ? Math.round((Number(precioCotizado) * porcentaje) / 100) : 0,
+      liquidada: Boolean(a.fechaLiquidacion),
+      fechaLiquidacion: a.fechaLiquidacion,
+    };
+  });
+ 
+  const sumar = (lista) => lista.reduce((suma, p) => suma + p.montoComision, 0);
+  return {
+    trabajador,
+    participaciones,
+    totales: {
+      comisionesPendientes: sumar(participaciones.filter((p) => !p.liquidada)),
+      comisionesLiquidadas: sumar(participaciones.filter((p) => p.liquidada)),
+    },
+  };
+}
+
+
 module.exports = {
   listarTrabajadores,
   obtenerTrabajadorPorId,
   crearTrabajador,
   actualizarTrabajador,
+  historialTrabajador,
 };
