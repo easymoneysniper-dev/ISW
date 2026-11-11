@@ -1,12 +1,13 @@
+// M3 · Formulario de equipo (RF 3.1).
 import { useState } from "react";
 import { guardarEquipo } from "../../services/equipoService";
 import { useSesion } from "../../hooks/useSesion";
-import { estadosEquipo } from "./equipo.utils";
+import { estadosEquipo, tiposEquipo } from "./equipo.utils";
 
 export default function EquipoForm({ equipo, kits, onGuardado, onCancelar }) {
   const { sesionExpirada } = useSesion();
   const [datos, setDatos] = useState({
-    nombre: equipo?.nombre ?? "", marca: equipo?.marca ?? "", modelo: equipo?.modelo ?? "",
+    nombre: equipo?.nombre ?? "", tipo: equipo?.tipo ?? "", marca: equipo?.marca ?? "", modelo: equipo?.modelo ?? "",
     numeroSerie: equipo?.numeroSerie ?? "", precioCompra: equipo?.precioCompra ?? "",
     fechaCompra: equipo?.fechaCompra.slice(0, 10) ?? "", estado: equipo?.estado ?? "DISPONIBLE",
     kitId: equipo?.kitId ? String(equipo.kitId) : "", nuevoKitNombre: "",
@@ -45,14 +46,18 @@ export default function EquipoForm({ equipo, kits, onGuardado, onCancelar }) {
       <fieldset disabled={guardando} className="equipo-form-grid">
         <legend className="equipo-sr">Ficha del equipo</legend>
         <label>Nombre *<input autoFocus name="nombre" value={datos.nombre} onChange={cambiar} maxLength={150} required /></label>
+        <label>Tipo *<select name="tipo" value={datos.tipo} onChange={cambiar} required>
+          <option value="">Selecciona el tipo</option>
+          {Object.entries(tiposEquipo).map(([valor, texto]) => <option key={valor} value={valor}>{texto}</option>)}
+        </select></label>
         <label>Número de serie<input name="numeroSerie" value={datos.numeroSerie} onChange={cambiar} maxLength={150} placeholder="Opcional" /></label>
         <label>Marca<input name="marca" value={datos.marca} onChange={cambiar} maxLength={100} /></label>
         <label>Modelo<input name="modelo" value={datos.modelo} onChange={cambiar} maxLength={100} /></label>
         <label>Precio de compra (CLP) *<input name="precioCompra" type="number" min="1" max="99999999999999" step="1" value={datos.precioCompra} onChange={cambiar} required /></label>
         <label>Fecha de compra *<input name="fechaCompra" type="date" value={datos.fechaCompra} onChange={cambiar} required /></label>
-        <label>Estado<select name="estado" value={datos.estado} onChange={cambiar}>
+        <label>Estado<select name="estado" value={datos.estado} onChange={cambiar} aria-describedby="ayuda-estado">
           {Object.entries(estadosEquipo).map(([valor, texto]) => <option key={valor} value={valor}>{texto}</option>)}
-        </select></label>
+        </select><small id="ayuda-estado">Al marcarlo «Dado de baja» se guarda la fecha de la baja para el reporte mensual.</small></label>
         <label>Ubicación en inventario<select value={destino} onChange={(e) => setDestino(e.target.value)}>
           <option value="suelto">Repuesto suelto</option>
           <option value="existente" disabled={!kits.length}>Dentro de un kit existente</option>

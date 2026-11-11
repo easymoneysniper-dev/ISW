@@ -1,3 +1,4 @@
+// M3 · Pruebas del service de equipos (BD simulada).
 const { test, mock, afterEach } = require("node:test");
 const assert = require("node:assert/strict");
 // Prisma usa proxies; se sustituye el módulo por un doble antes de cargar el service.
@@ -29,7 +30,10 @@ test("ficha, kit y auditoría usan la misma transacción y la fecha no pierde un
 
 test("el fallo de auditoría se propaga para que Prisma revierta la transacción", async () => {
   mock.method(prisma, "$transaction", async (fn) => fn({
-    equipo: { update: async ({ where, data }) => ({ id: where.id, ...data }) },
+    equipo: {
+      findUnique: async () => ({ estado: "DISPONIBLE", fechaBaja: null, kitId: null }),
+      update: async ({ where, data }) => ({ id: where.id, ...data }),
+    },
     registroCambio: { create: async () => { throw new Error("fallo de auditoría"); } },
   }));
   await assert.rejects(service.guardar({ nombre: "Cámara", fechaCompra: "2026-10-01", estado: "DADO_DE_BAJA", kitId: null }, 9, 5), /fallo de auditoría/);
@@ -49,4 +53,37 @@ test("compras usa límites de mes exclusivos, también en diciembre, sin filtrar
 test("mes sin compras devuelve total cero y una lista vacía", async () => {
   mock.method(prisma.equipo, "findMany", async () => []);
   assert.deepEqual(await service.comprasMensuales("2026-02"), { mes: "2026-02", cantidad: 0, total: "0", equipos: [] });
+});
+
+test("al dar de baja guarda la fecha de baja y al volver a disponible la limpia (Requisito 3.1)", async () => {
+  let guardado;
+  const tx = (anterior) => ({
+    equipo: {
+      findUnique: async () => anterior,
+      update: async ({ where, data }) => { guardado = data; return { id: where.id, nombre: "Cámara", ...data }; },
+    },
+    registroCambio: { create: async () => {} },
+  });
+  mock.method(prisma, "$transaction", async (fn) => fn(tx({ estado: "DISPONIBLE", fechaBaja: null, kitId: null })));
+  await service.guardar({ nombre: "Cámara", fechaCompra: "2026-10-01", estado: "DADO_DE_BAJA", kitId: null }, 9, 5);
+  assert.ok(guardado.fechaBaja instanceof Date);
+  mock.method(prisma, "$transaction", async (fn) => fn(tx({ estado: "DADO_DE_BAJA", fechaBaja: new Date("2026-10-15"), kitId: null })));
+  await service.guardar({ nombre: "Cámara", fechaCompra: "2026-10-01", estado: "DADO_DE_BAJA", kitId: null }, 9, 5);
+  assert.equal(guardado.fechaBaja.toISOString().slice(0, 10), "2026-10-15");
+  await service.guardar({ nombre: "Cámara", fechaCompra: "2026-10-01", estado: "DISPONIBLE", kitId: null }, 9, 5);
+  assert.equal(guardado.fechaBaja, null);
+});
+
+test("un equipo no disponible no puede entrar a un kit (Requisito 3.2)", async () => {
+  mock.method(prisma, "$transaction", async (fn) => fn({
+    equipo: { findUnique: async () => ({ estado: "DANADO", fechaBaja: null, kitId: null }) },
+  }));
+  await assert.rejects(service.guardar({ nombre: "Cámara", fechaCompra: "2026-10-01", estado: "DANADO", kitId: 3 }, 9, 5), { status: 400 });
+});
+
+test("traduce serie o kit repetido y kit inexistente a mensajes claros", () => {
+  assert.match(service.traducirErrorPrisma({ code: "P2002", meta: { target: ["numeroSerie"] } }).message, /número de serie/);
+  assert.equal(service.traducirErrorPrisma({ code: "P2002", meta: { target: ["nombre"] } }).status, 409);
+  assert.equal(service.traducirErrorPrisma({ code: "P2003" }).status, 400);
+  assert.equal(service.traducirErrorPrisma({ code: "P2025" }).status, 404);
 });

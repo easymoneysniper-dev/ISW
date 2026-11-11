@@ -1,9 +1,18 @@
+// M3 · Nombres y formatos de equipos.
 export const estadosEquipo = {
   DISPONIBLE: "Disponible",
   DANADO: "Dañado",
   EN_REPARACION: "En reparación",
   PERDIDO: "Perdido",
   DADO_DE_BAJA: "Dado de baja",
+};
+
+export const tiposEquipo = {
+  CAMARA: "Cámara",
+  TRIPODE: "Trípode",
+  MICROFONO: "Micrófono",
+  SWITCH: "Switch",
+  OTRO: "Otro",
 };
 
 export const pesos = (valor) => new Intl.NumberFormat("es-CL", {
