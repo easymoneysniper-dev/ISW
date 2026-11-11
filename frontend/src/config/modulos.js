@@ -110,6 +110,8 @@ export const modulos = [
       {
         "id": "kits",
         "titulo": "Kits",
+        "disponible": true,
+        "descripcion": "Arma kits con equipos disponibles, clasifícalos y decide si están en condiciones de salir.",
         "roles": [
           "DUENO",
           "JEFE_TECNICO"
@@ -121,6 +123,8 @@ export const modulos = [
       {
         "id": "asignar",
         "titulo": "Asignar kits a transmisiones",
+        "disponible": true,
+        "descripcion": "Reserva kits para cada transmisión; el precio cotizado se recalcula solo.",
         "roles": [
           "DUENO"
         ],
@@ -129,18 +133,28 @@ export const modulos = [
       {
         "id": "movimientos",
         "titulo": "Salida y retorno de equipos",
+        "disponible": true,
+        "descripcion": "Registra qué equipos salen a cada transmisión, con quién y cómo vuelven.",
         "roles": [
-          "JEFE_TECNICO"
+          "JEFE_TECNICO",
+          "DUENO"
         ],
-        "consulta": []
+        "consulta": [
+          "DUENO"
+        ]
       },
       {
         "id": "incidentes",
         "titulo": "Incidentes y reporte mensual",
+        "disponible": true,
+        "descripcion": "Compras, pérdidas y bajas de equipos del mes, con sus montos.",
         "roles": [
-          "JEFE_TECNICO"
+          "JEFE_TECNICO",
+          "DUENO"
         ],
-        "consulta": []
+        "consulta": [
+          "DUENO"
+        ]
       }
     ]
   },

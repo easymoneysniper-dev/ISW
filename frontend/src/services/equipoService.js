@@ -1,3 +1,4 @@
+// M3 · Llamadas a /api/equipos.
 import { pedir } from "./api";
 
 export const listarEquipos = () => pedir("/equipos");
@@ -9,3 +10,5 @@ export function guardarEquipo(datos, id) {
     body: JSON.stringify(datos),
   });
 }
+
+export const obtenerReporteMensual = (mes) => pedir(`/equipos/reporte-mensual?mes=${encodeURIComponent(mes)}`);

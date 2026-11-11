@@ -1,4 +1,4 @@
-// Pruebas HTTP con sesión y persistencia simuladas; no conectan a la BD de la universidad.
+// M3 · Pruebas de las rutas de equipos (sesión y BD simuladas).
 const { test, before, after, afterEach, mock } = require("node:test");
 const assert = require("node:assert/strict");
 const express = require("express");
@@ -9,14 +9,16 @@ let ultimoGuardado;
 mock.method(service, "listar", async () => []);
 mock.method(service, "listarKits", async () => []);
 mock.method(service, "comprasMensuales", async (mes) => ({ mes, cantidad: 0, total: "0", equipos: [] }));
+mock.method(service, "reporteMensual", async (mes) => ({ mes }));
 mock.method(service, "guardar", async (...args) => {
-  if (errorGuardar) throw errorGuardar;
+  // Simula lo que lanza el service real (ver equipo.service.test.js).
+  if (errorGuardar) throw service.traducirErrorPrisma(errorGuardar);
   ultimoGuardado = args;
   return { id: args[2] ?? 1, ...args[0] };
 });
 const app = express();
 app.use(express.json());
-// Solo este servidor de pruebas interpreta este encabezado. La app real usa su cookie.
+// Solo este servidor de pruebas lee este encabezado; la app real usa la cookie.
 app.use((req, res, next) => { req.session = { usuario: req.get("x-test-rol") ? { id: 9, rol: req.get("x-test-rol") } : null }; next(); });
 app.use("/equipos", require("../src/routes/equipo.routes"));
 app.use(manejarErrores);
@@ -27,7 +29,7 @@ before(async () => {
 });
 after(async () => { await new Promise((resolve) => server.close(resolve)); mock.restoreAll(); });
 afterEach(() => { errorGuardar = null; ultimoGuardado = undefined; });
-const datos = { nombre: "Cámara", precioCompra: "250000", fechaCompra: "2026-10-20" };
+const datos = { nombre: "Cámara", tipo: "CAMARA", precioCompra: "250000", fechaCompra: "2026-10-20" };
 function pedir(rol, method = "GET", ruta = "", body = datos) {
   return fetch(url + ruta, { method, headers: { ...(rol ? { "x-test-rol": rol } : {}), "Content-Type": "application/json" }, ...(method === "GET" ? {} : { body: JSON.stringify(body) }) });
 }

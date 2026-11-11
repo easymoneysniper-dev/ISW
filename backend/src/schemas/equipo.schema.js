@@ -1,9 +1,10 @@
+// M3 · Validación de equipos (RF 3.1 y 3.6). La usa equipo.routes.js.
 const { z } = require("zod");
 
 const estadosEquipo = ["DISPONIBLE", "DANADO", "EN_REPARACION", "PERDIDO", "DADO_DE_BAJA"];
+const TIPOS_EQUIPO = ["CAMARA", "TRIPODE", "MICROFONO", "SWITCH", "OTRO"];
 const opcional = (max) => z.string().trim().max(max).nullish().transform((valor) => valor || null);
 
-// Se reciben pesos chilenos enteros, igual que los importes existentes del proyecto.
 const precioCompra = z.union([z.string(), z.number()])
   .transform((valor) => String(valor).trim())
   .refine((valor) => /^\d{1,14}$/.test(valor) && BigInt(valor) > 0n,
@@ -17,6 +18,7 @@ const fechaCompra = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ingresa una fecha d
 
 const guardarEquipoSchema = z.object({
   nombre: z.string().trim().min(1, "El nombre es obligatorio").max(150),
+  tipo: z.enum(TIPOS_EQUIPO, { error: "Selecciona el tipo: cámara, trípode, micrófono, switch u otro" }),
   marca: opcional(100),
   modelo: opcional(100),
   // Una serie vacía se guarda como NULL; PostgreSQL permite varias sin serie.
@@ -36,4 +38,4 @@ const mesComprasSchema = z.object({
   mes: z.string().regex(/^(?!0000)\d{4}-(0[1-9]|1[0-2])$/, "Indica el mes como AAAA-MM"),
 }).strict();
 
-module.exports = { guardarEquipoSchema, idEquipoSchema, mesComprasSchema };
+module.exports = { TIPOS_EQUIPO, guardarEquipoSchema, idEquipoSchema, mesComprasSchema };

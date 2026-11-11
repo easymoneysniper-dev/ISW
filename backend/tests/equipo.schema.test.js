@@ -1,7 +1,8 @@
+// M3 · Pruebas de la validación de equipos.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { guardarEquipoSchema: schema, mesComprasSchema } = require("../src/schemas/equipo.schema");
-const base = { nombre: " Cámara ", precioCompra: "150000", fechaCompra: "2026-10-20" };
+const base = { nombre: " Cámara ", tipo: "CAMARA", precioCompra: "150000", fechaCompra: "2026-10-20" };
 
 test("nombre, precio y fecha son obligatorios; marca, modelo y serie son opcionales", () => {
   const datos = schema.parse(base);
@@ -9,7 +10,7 @@ test("nombre, precio y fecha son obligatorios; marca, modelo y serie son opciona
   assert.equal(datos.numeroSerie, null);
   assert.equal(datos.kitId, null);
   assert.equal(datos.estado, "DISPONIBLE");
-  for (const campo of ["nombre", "precioCompra", "fechaCompra"]) {
+  for (const campo of ["nombre", "tipo", "precioCompra", "fechaCompra"]) {
     const incompleto = { ...base }; delete incompleto[campo];
     assert.equal(schema.safeParse(incompleto).success, false, campo);
   }
@@ -50,4 +51,9 @@ test("mes del reporte debe tener formato AAAA-MM", () => {
     assert.equal(mesComprasSchema.safeParse({ mes }).success, false);
   }
   assert.equal(mesComprasSchema.safeParse({ mes: "2026-12" }).success, true);
+});
+
+test("el tipo debe ser cámara, trípode, micrófono, switch u otro (Requisito 3.1)", () => {
+  for (const tipo of ["CAMARA", "TRIPODE", "MICROFONO", "SWITCH", "OTRO"]) assert.equal(schema.safeParse({ ...base, tipo }).success, true, tipo);
+  assert.equal(schema.safeParse({ ...base, tipo: "LUZ" }).success, false);
 });
