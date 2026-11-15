@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^7.0.3",
+    "antd": "^6.7.0",
+    "dayjs": "^1.11.23",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-hook-form": "^7.91.0",

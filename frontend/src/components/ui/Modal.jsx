@@ -1,25 +1,10 @@
-// UI · Ventana modal con <dialog> nativo: el navegador maneja el foco y la tecla Escape.
-import { useEffect, useRef } from "react";
+// UI · Ventana modal. acciones: botones del pie; si no hay, la ventana no muestra pie. ancho en píxeles.
+import { Modal as ModalAntd } from "antd";
 
-export default function Modal({ abierto, titulo, onCerrar, acciones, children }) {
-  const ref = useRef(null);
-
-  useEffect(() => {
-    const dialogo = ref.current;
-    if (!dialogo) return;
-    if (abierto && !dialogo.open) dialogo.showModal();
-    if (!abierto && dialogo.open) dialogo.close();
-  }, [abierto]);
-
+export default function Modal({ abierto, titulo, onCerrar, acciones, ancho, children }) {
   return (
-    <dialog ref={ref} className="ui-modal" aria-labelledby="ui-modal-titulo" onClose={onCerrar} onCancel={onCerrar}>
-      {abierto && (
-        <div className="ui-modal-contenido">
-          <h2 id="ui-modal-titulo">{titulo}</h2>
-          {children}
-          {acciones && <div className="ui-modal-acciones">{acciones}</div>}
-        </div>
-      )}
-    </dialog>
+    <ModalAntd open={abierto} title={titulo} onCancel={onCerrar} footer={acciones ?? null} width={ancho} destroyOnHidden>
+      {children}
+    </ModalAntd>
   );
 }
