@@ -17,6 +17,8 @@ export const modulos = [
       {
         "id": "registro",
         "titulo": "Registrar y cotizar transmisión",
+        "disponible": true,
+        "descripcion": "Registra el evento con su cliente, revisa quién está disponible y obtén la cotización.",
         "roles": [
           "DUENO"
         ],
@@ -25,6 +27,8 @@ export const modulos = [
       {
         "id": "estados",
         "titulo": "Estados y confirmación",
+        "disponible": true,
+        "descripcion": "Registra la respuesta del cliente y confirma las transmisiones aceptadas.",
         "roles": [
           "DUENO"
         ],
@@ -33,6 +37,8 @@ export const modulos = [
       {
         "id": "cambios",
         "titulo": "Cambios y cancelaciones",
+        "disponible": true,
+        "descripcion": "Reprograma, modifica los requerimientos o cancela una transmisión.",
         "roles": [
           "DUENO"
         ],
@@ -41,6 +47,8 @@ export const modulos = [
       {
         "id": "calendario",
         "titulo": "Calendario y clientes",
+        "disponible": true,
+        "descripcion": "Calendario mensual con la ficha de cada transmisión y el registro de clientes.",
         "roles": [
           "DUENO"
         ],
