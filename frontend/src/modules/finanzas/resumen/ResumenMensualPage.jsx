@@ -1,10 +1,11 @@
-// Pantalla del resumen mensual (M4, requisito 4.7).
+// Pantalla del resumen mensual y, debajo, la rentabilidad por transmisión.
 // El Dueño ve en grande si el mes tuvo ganancia o pérdida; el Contador además revisa
 // las transmisiones del mes que todavía tienen saldo pendiente.
 import { useCallback, useEffect, useState } from "react";
 import { useSesion } from "../../../hooks/useSesion";
 import { obtenerResumenMensual } from "../../../services/reporteService";
 import SelectorMes from "../SelectorMes";
+import FichaRentabilidad from "./FichaRentabilidad";
 import {
   formatearPesos,
   formatearFecha,
@@ -178,6 +179,8 @@ function ResumenMensualPage() {
           )}
         </>
       )}
+
+      <FichaRentabilidad />
     </section>
   );
 }
