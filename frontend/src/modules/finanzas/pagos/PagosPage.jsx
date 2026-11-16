@@ -1,12 +1,14 @@
-// Pantalla de pagos del cliente (M4, requisito 4.1).
+// Pantalla de pagos del cliente.
 // El Contador elige una transmisión, ve su estado de pago y registra pagos con comprobante.
-// El Dueño ve lo mismo, pero sin el formulario.
+// Si la transmisión está Cancelada, también ve y registra la devolución del adelanto.
+// El Dueño ve lo mismo, pero sin los formularios.
 import { useCallback, useState } from "react";
 import { useSesion } from "../../../hooks/useSesion";
 import { obtenerResumenPagos } from "../../../services/pagoService";
 import SelectorTransmision from "../SelectorTransmision";
 import ResumenPagos from "./ResumenPagos";
 import RegistrarPagoForm from "./RegistrarPagoForm";
+import DevolucionAdelanto from "./DevolucionAdelanto";
 
 // Solo el Contador registra pagos (el backend también lo exige con requireRol).
 const ROLES_QUE_REGISTRAN = ["CONTADOR"];
@@ -96,6 +98,15 @@ function PagosPage() {
               Esta transmisión está {transmision.estado.toLowerCase()}: no se le pueden registrar
               pagos.
             </p>
+          )}
+
+          {transmision.estado === "CANCELADA" && (
+            <DevolucionAdelanto
+              key={transmision.id}
+              transmisionId={transmision.id}
+              puedeRegistrar={puedeRegistrar}
+              onError={manejarError}
+            />
           )}
         </>
       )}
