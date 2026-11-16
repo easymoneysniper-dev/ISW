@@ -15,6 +15,8 @@ const auditoriaRoutes = require("./auditoria.routes");
 const pagoRoutes = require("./pago.routes");
 const gastoRoutes = require("./gasto.routes");
 const costoFijoRoutes = require("./costoFijo.routes");
+const auspiciadorRoutes = require("./auspiciador.routes");
+const aporteRoutes = require("./aporte.routes");
 const reporteRoutes = require("./reporte.routes");
 const devolucionRoutes = require("./devolucion.routes");
 
@@ -33,6 +35,8 @@ router.use("/asignaciones", asignacionRoutes);
 router.use("/pagos", pagoRoutes); // /api/pagos
 router.use("/gastos", gastoRoutes); // /api/gastos
 router.use("/costos-fijos", costoFijoRoutes); // /api/costos-fijos
+router.use("/auspiciadores", auspiciadorRoutes); // /api/auspiciadores
+router.use("/aportes", aporteRoutes); // /api/aportes
 router.use("/reportes", reporteRoutes); // /api/reportes
 router.use("/auditoria", auditoriaRoutes);
 router.use("/devoluciones", devolucionRoutes); // /api/devoluciones
