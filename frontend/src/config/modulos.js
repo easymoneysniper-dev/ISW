@@ -198,7 +198,9 @@ export const modulos = [
       },
       {
         "id": "acuerdos",
-        "titulo": "Acuerdos y aportes no cumplidos",
+        "titulo": "Acuerdos y aportes no cumplidos",        
+        "disponible": true,
+        "descripcion": "Registra auspiciadores y acuerdos, y marca los aportes no cumplidos.",
         "roles": [
           "DUENO"
         ],
