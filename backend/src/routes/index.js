@@ -16,6 +16,7 @@ const pagoRoutes = require("./pago.routes");
 const gastoRoutes = require("./gasto.routes");
 const costoFijoRoutes = require("./costoFijo.routes");
 const reporteRoutes = require("./reporte.routes");
+const devolucionRoutes = require("./devolucion.routes");
 
 const router = Router();
 
@@ -34,5 +35,6 @@ router.use("/gastos", gastoRoutes); // /api/gastos
 router.use("/costos-fijos", costoFijoRoutes); // /api/costos-fijos
 router.use("/reportes", reporteRoutes); // /api/reportes
 router.use("/auditoria", auditoriaRoutes);
+router.use("/devoluciones", devolucionRoutes); // /api/devoluciones
 
 module.exports = router;
