@@ -208,7 +208,9 @@ export const modulos = [
       },
       {
         "id": "aportes",
-        "titulo": "Aportes recibidos y valorización de canjes",
+        "titulo": "Aportes recibidos y valorización de canjes",        
+        "disponible": true,
+        "descripcion": "Registra la recepción de los aportes con su comprobante y el valor de los canjes.",
         "roles": [
           "CONTADOR"
         ],
