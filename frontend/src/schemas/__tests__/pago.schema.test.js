@@ -1,4 +1,4 @@
-// Pruebas unitarias del esquema de pagos (Clase 7). Se corren con: npm run test:run
+// Pruebas unitarias del esquema de pagos. Se corren con: npm run test:run
 import { describe, it, expect } from "vitest";
 import { crearPagoSchema } from "../pago.schema";
 

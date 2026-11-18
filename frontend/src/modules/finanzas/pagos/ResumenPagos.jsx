@@ -1,71 +1,57 @@
 // Muestra el estado de pago de una transmisión y la lista de pagos recibidos.
 // Lo usa PagosPage.jsx, que le pasa el resumen que entrega el backend.
+import Badge from "../../../components/ui/Badge";
+import DataTable from "../../../components/ui/DataTable";
 import {
   formatearPesos,
   formatearFecha,
   NOMBRE_ESTADO_PAGO,
   NOMBRE_MEDIO_PAGO,
-  COLOR_ESTADO_PAGO,
+  TONO_ESTADO_PAGO,
 } from "../formato";
 
-function ResumenPagos({ resumen }) {
-  const color = COLOR_ESTADO_PAGO[resumen.estadoPago];
-
+export default function ResumenPagos({ resumen }) {
   return (
-    <section>
-      <p>
-        Estado de pago:{" "}
-        <strong
-          style={{
-            backgroundColor: color.fondo,
-            color: color.texto,
-            padding: "0.2rem 0.6rem",
-            borderRadius: "999px",
-          }}
-        >
-          {NOMBRE_ESTADO_PAGO[resumen.estadoPago]}
-        </strong>
-      </p>
-
-      <ul>
-        <li>Precio cotizado: {formatearPesos(resumen.precioCotizado)}</li>
-        <li>Total pagado: {formatearPesos(resumen.totalPagado)}</li>
-        <li>
-          <strong>Saldo pendiente: {formatearPesos(resumen.saldoPendiente)}</strong>
-        </li>
+    <>
+      <div className="ui-cifras">
+        <div className="ui-cifra">
+          <span>Estado de pago</span>
+          <strong>
+            <Badge tono={TONO_ESTADO_PAGO[resumen.estadoPago]}>{NOMBRE_ESTADO_PAGO[resumen.estadoPago]}</Badge>
+          </strong>
+        </div>
+        <div className="ui-cifra">
+          <span>Precio cotizado</span>
+          <strong>{formatearPesos(resumen.precioCotizado)}</strong>
+        </div>
+        <div className="ui-cifra">
+          <span>Total pagado</span>
+          <strong>{formatearPesos(resumen.totalPagado)}</strong>
+        </div>
+        <div className="ui-cifra">
+          <span>Saldo pendiente</span>
+          <strong>{formatearPesos(resumen.saldoPendiente)}</strong>
+        </div>
         {resumen.requiereAdelanto && (
-          <li>Requiere adelanto de al menos {formatearPesos(resumen.adelantoMinimo)}</li>
+          <div className="ui-cifra">
+            <span>Adelanto mínimo</span>
+            <strong>{formatearPesos(resumen.adelantoMinimo)}</strong>
+          </div>
         )}
-      </ul>
+      </div>
 
-      <h3>Pagos recibidos</h3>
-
-      {resumen.pagos.length === 0 ? (
-        <p>Todavía no hay pagos registrados.</p>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>Tipo</th>
-              <th>Monto</th>
-              <th>Medio</th>
-            </tr>
-          </thead>
-          <tbody>
-            {resumen.pagos.map((pago) => (
-              <tr key={pago.id}>
-                <td>{formatearFecha(pago.fecha)}</td>
-                <td>{pago.tipo === "ADELANTO" ? "Adelanto" : "Saldo"}</td>
-                <td>{formatearPesos(pago.monto)}</td>
-                <td>{NOMBRE_MEDIO_PAGO[pago.medio] || "-"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </section>
+      <h3 className="ui-subtitulo">Pagos recibidos</h3>
+      <DataTable
+        titulo="Pagos recibidos"
+        datos={resumen.pagos}
+        vacio="Todavía no hay pagos registrados."
+        columnas={[
+          { titulo: "Fecha", render: (pago) => formatearFecha(pago.fecha) },
+          { titulo: "Tipo", render: (pago) => (pago.tipo === "ADELANTO" ? "Adelanto" : "Saldo") },
+          { titulo: "Monto", numero: true, render: (pago) => formatearPesos(pago.monto) },
+          { titulo: "Medio", render: (pago) => NOMBRE_MEDIO_PAGO[pago.medio] || "-" },
+        ]}
+      />
+    </>
   );
 }
-
-export default ResumenPagos;

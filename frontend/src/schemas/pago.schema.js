@@ -1,5 +1,5 @@
-// Reglas del formulario de pagos (Clase 7: React Hook Form + Zod).
-// MER v3.1: medio Transferencia o Efectivo, sin observación.
+// Reglas del formulario de pagos (React Hook Form + Zod).
+// Medio Transferencia o Efectivo, sin observación.
 // Son las mismas del backend (backend/src/schemas/pago.schema.js) para avisar antes de enviar.
 import { z } from "zod";
 import { comprobanteSchema, fechaNoFutura } from "./comprobante.schema";
