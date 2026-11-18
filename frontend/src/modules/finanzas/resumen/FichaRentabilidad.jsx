@@ -2,102 +2,54 @@
 // La usa ResumenMensualPage.jsx, debajo del resumen del mes. Dueño y Contador la consultan.
 // El backend solo la entrega si la transmisión está Rendida o Cerrada; si no, se muestra su mensaje.
 import { useCallback, useState } from "react";
-import { useSesion } from "../../../hooks/useSesion";
+import { useFetch } from "../../../hooks/useFetch";
 import { obtenerRentabilidad } from "../../../services/reporteService";
+import Card from "../../../components/ui/Card";
+import Alerta from "../../../components/ui/Alerta";
+import Badge from "../../../components/ui/Badge";
+import ListaDatos from "../../../components/ui/ListaDatos";
 import SelectorTransmision from "../SelectorTransmision";
 import { formatearPesos } from "../formato";
 
-function FichaRentabilidad() {
-  const { sesionExpirada } = useSesion();
-
+export default function FichaRentabilidad() {
   const [transmision, setTransmision] = useState(null);
-  const [ficha, setFicha] = useState(null);
-  const [cargando, setCargando] = useState(false);
-  const [error, setError] = useState("");
-
-  const manejarError = useCallback(
-    (err) => {
-      if (err.status === 401) {
-        sesionExpirada();
-        return;
-      }
-      setError(err.message);
-    },
-    [sesionExpirada]
-  );
-
-  async function elegirTransmision(elegida) {
-    setTransmision(elegida);
-    setFicha(null);
-    setError("");
-    if (!elegida) return;
-
-    setCargando(true);
-    try {
-      setFicha(await obtenerRentabilidad(elegida.id));
-    } catch (err) {
-      manejarError(err);
-    } finally {
-      setCargando(false);
-    }
-  }
-
-  const ganancia = ficha && ficha.rentabilidad >= 0;
 
   return (
-    <section style={{ marginTop: "2rem" }}>
-      <h2>Rentabilidad por transmisión</h2>
+    <Card titulo="Rentabilidad por transmisión">
       <p>Solo se puede revisar cuando la transmisión está Rendida o Cerrada.</p>
-
-      <SelectorTransmision
-        transmision={transmision}
-        onCambiar={elegirTransmision}
-        onError={manejarError}
-      />
-
-      {error && <p role="alert" style={{ color: "#b91c1c" }}>{error}</p>}
-      {cargando && <p>Calculando la rentabilidad...</p>}
-
-      {ficha && !cargando && (
-        <>
-          <h3>{ficha.nombreEvento}</h3>
-
-          <table>
-            <tbody>
-              <tr>
-                <td>Pagos recibidos (menos devoluciones)</td>
-                <td>{formatearPesos(ficha.ingresos)}</td>
-              </tr>
-              <tr>
-                <td>+ Aportes cumplidos de auspiciadores</td>
-                <td>{formatearPesos(ficha.aportesCumplidos)}</td>
-              </tr>
-              <tr>
-                <td>− Comisiones liquidadas</td>
-                <td>{formatearPesos(ficha.comisiones)}</td>
-              </tr>
-              <tr>
-                <td>− Gastos</td>
-                <td>{formatearPesos(ficha.gastos)}</td>
-              </tr>
-              <tr>
-                <td>− Pérdidas de equipos</td>
-                <td>{formatearPesos(ficha.perdidasEquipos)}</td>
-              </tr>
-              <tr style={{ color: ganancia ? "#166534" : "#991b1b" }}>
-                <td>
-                  <strong>Rentabilidad</strong>
-                </td>
-                <td>
-                  <strong>{formatearPesos(ficha.rentabilidad)}</strong>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </>
-      )}
-    </section>
+      <SelectorTransmision transmision={transmision} onCambiar={setTransmision} />
+      {transmision && <Ficha key={transmision.id} transmisionId={transmision.id} />}
+    </Card>
   );
 }
 
-export default FichaRentabilidad;
+// Ficha de la transmisión elegida. Se vuelve a crear cada vez que se elige otra.
+function Ficha({ transmisionId }) {
+  const cargar = useCallback(() => obtenerRentabilidad(transmisionId), [transmisionId]);
+  const { datos: ficha, cargando, error } = useFetch(cargar);
+
+  if (cargando) return <p role="status">Calculando la rentabilidad…</p>;
+  if (error) return <Alerta tipo="advertencia">{error}</Alerta>;
+
+  const ganancia = ficha.rentabilidad >= 0;
+
+  return (
+    <>
+      <h3 className="ui-subtitulo">{ficha.nombreEvento}</h3>
+      <ListaDatos
+        columnas={1}
+        datos={[
+          { etiqueta: "Pagos recibidos (menos devoluciones)", valor: formatearPesos(ficha.ingresos) },
+          { etiqueta: "+ Aportes cumplidos de auspiciadores", valor: formatearPesos(ficha.aportesCumplidos) },
+          { etiqueta: "− Comisiones liquidadas", valor: formatearPesos(ficha.comisiones) },
+          { etiqueta: "− Gastos", valor: formatearPesos(ficha.gastos) },
+          { etiqueta: "− Pérdidas de equipos", valor: formatearPesos(ficha.perdidasEquipos) },
+          {
+            etiqueta: "Rentabilidad",
+            valor: <Badge tono={ganancia ? "exito" : "error"}>{formatearPesos(ficha.rentabilidad)}</Badge>,
+          },
+        ]}
+      />
+    </>
+  );
+}

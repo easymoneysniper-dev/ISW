@@ -1,60 +1,54 @@
-// Formulario para registrar un costo fijo del mes elegido (Clase 7: React Hook Form + Zod).
+// Formulario para registrar un costo fijo del mes elegido (React Hook Form + Zod).
 // Lo usa CostosFijosPage.jsx. Avisa al padre con onCostoRegistrado para que recargue la lista.
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { crearCostoFijoSchema } from "../../../schemas/costoFijo.schema";
 import { registrarCostoFijo } from "../../../services/costoFijoService";
-import { NOMBRE_MES, ESTILO_CAMPO, ESTILO_ERROR } from "../formato";
+import { useAccion } from "../../../hooks/useAccion";
+import Campo from "../../../components/ui/Campo";
+import Boton from "../../../components/ui/Boton";
+import Alerta from "../../../components/ui/Alerta";
+import { NOMBRE_MES } from "../formato";
 
-function RegistrarCostoFijoForm({ anio, mes, onCostoRegistrado }) {
-  const [errorServidor, setErrorServidor] = useState("");
+export default function RegistrarCostoFijoForm({ anio, mes, onCostoRegistrado }) {
+  // Si el backend lo rechaza (por ejemplo, el nombre ya existe en ese mes), queda en error.
+  const { ejecutar, guardando, error } = useAccion();
 
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors },
     reset,
   } = useForm({ resolver: zodResolver(crearCostoFijoSchema) });
 
   async function onSubmit(datos) {
-    setErrorServidor("");
+    const costo = await ejecutar(() => registrarCostoFijo({ ...datos, anio, mes }));
+    if (!costo) return;
 
-    try {
-      await registrarCostoFijo({ ...datos, anio, mes });
-      reset();
-      onCostoRegistrado();
-    } catch (error) {
-      // Mensaje del backend, por ejemplo si el nombre ya existe en ese mes.
-      setErrorServidor(error.message);
-    }
+    reset();
+    onCostoRegistrado();
   }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
-      <h3>
+      <h3 className="ui-subtitulo">
         Agregar costo fijo de {NOMBRE_MES[mes - 1]} {anio}
       </h3>
 
-      <div style={ESTILO_CAMPO}>
-        <label htmlFor="nombre">Nombre *</label>
-        <input id="nombre" type="text" placeholder="Arriendo, internet, luz..." {...register("nombre")} />
-        {errors.nombre && <p role="alert" style={ESTILO_ERROR}>{errors.nombre.message}</p>}
+      <div className="ui-formulario">
+        <Campo etiqueta="Nombre *" error={errors.nombre?.message}>
+          <input type="text" placeholder="Arriendo, internet, luz..." {...register("nombre")} />
+        </Campo>
+
+        <Campo etiqueta="Monto (en pesos) *" error={errors.monto?.message}>
+          <input type="number" min="1" step="1" {...register("monto")} />
+        </Campo>
       </div>
 
-      <div style={ESTILO_CAMPO}>
-        <label htmlFor="monto">Monto (en pesos) *</label>
-        <input id="monto" type="number" min="1" step="1" {...register("monto")} />
-        {errors.monto && <p role="alert" style={ESTILO_ERROR}>{errors.monto.message}</p>}
+      <Alerta tipo="error">{error}</Alerta>
+      <div className="ui-botones">
+        <Boton type="submit" cargando={guardando}>Agregar costo fijo</Boton>
       </div>
-
-      {errorServidor && <p role="alert" style={ESTILO_ERROR}>{errorServidor}</p>}
-
-      <button type="submit" disabled={isSubmitting}>
-        {isSubmitting ? "Guardando..." : "Agregar costo fijo"}
-      </button>
     </form>
   );
 }
-
-export default RegistrarCostoFijoForm;

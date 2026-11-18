@@ -4,7 +4,13 @@
 // El Dueño ve lo mismo, pero sin los formularios.
 import { useCallback, useState } from "react";
 import { useSesion } from "../../../hooks/useSesion";
+import { useFetch } from "../../../hooks/useFetch";
 import { obtenerResumenPagos } from "../../../services/pagoService";
+import { NOMBRE_ESTADO } from "../../../utils/transmision";
+import CabeceraPagina from "../../../components/ui/CabeceraPagina";
+import Card from "../../../components/ui/Card";
+import Alerta from "../../../components/ui/Alerta";
+import Badge from "../../../components/ui/Badge";
 import SelectorTransmision from "../SelectorTransmision";
 import ResumenPagos from "./ResumenPagos";
 import RegistrarPagoForm from "./RegistrarPagoForm";
@@ -16,102 +22,69 @@ const ROLES_QUE_REGISTRAN = ["CONTADOR"];
 // Estados en que el backend no acepta pagos.
 const ESTADOS_SIN_PAGO = ["COTIZADA", "RECHAZADA", "CANCELADA"];
 
-function PagosPage() {
-  const { usuario, sesionExpirada } = useSesion();
+export default function PagosPage() {
+  const { usuario } = useSesion();
   const puedeRegistrar = ROLES_QUE_REGISTRAN.includes(usuario?.rol);
-
   const [transmision, setTransmision] = useState(null);
-  const [resumen, setResumen] = useState(null);
-  const [cargando, setCargando] = useState(false);
-  const [error, setError] = useState("");
-  const [mensaje, setMensaje] = useState("");
-
-  // Si la sesión venció vuelve al login; si no, muestra el mensaje del backend.
-  const manejarError = useCallback(
-    (err) => {
-      if (err.status === 401) {
-        sesionExpirada();
-        return;
-      }
-      setError(err.message);
-    },
-    [sesionExpirada]
-  );
-
-  async function cargarResumen(id) {
-    setCargando(true);
-    setError("");
-
-    try {
-      setResumen(await obtenerResumenPagos(id));
-    } catch (err) {
-      setResumen(null);
-      manejarError(err);
-    } finally {
-      setCargando(false);
-    }
-  }
-
-  function elegirTransmision(elegida) {
-    setTransmision(elegida);
-    setMensaje("");
-    setResumen(null);
-    if (elegida) cargarResumen(elegida.id);
-  }
-
-  async function pagoRegistrado() {
-    setMensaje("Pago registrado correctamente");
-    await cargarResumen(transmision.id);
-  }
-
-  const aceptaPagos = transmision && !ESTADOS_SIN_PAGO.includes(transmision.estado);
 
   return (
-    <section>
-      <h2>Pagos del cliente</h2>
-
-      <SelectorTransmision
-        transmision={transmision}
-        onCambiar={elegirTransmision}
-        onError={manejarError}
+    <section className="ui-pagina">
+      <CabeceraPagina
+        volver={{ href: "#/finanzas", texto: "Finanzas y auspiciadores" }}
+        titulo="Pagos del cliente"
+        descripcion="Elige una transmisión para ver su estado de pago y los pagos recibidos."
+        extra={<Badge tono="info">{puedeRegistrar ? "Gestión" : "Solo consulta"}</Badge>}
       />
 
-      {error && <p role="alert" style={{ color: "#b91c1c" }}>{error}</p>}
-      {mensaje && <p style={{ color: "#166534" }}>{mensaje}</p>}
-      {cargando && <p>Cargando pagos...</p>}
+      <Card titulo="Transmisión">
+        <SelectorTransmision transmision={transmision} onCambiar={setTransmision} />
+      </Card>
 
-      {resumen && !cargando && (
-        <>
-          <ResumenPagos resumen={resumen} />
-
-          {puedeRegistrar && aceptaPagos && resumen.saldoPendiente > 0 && (
-            <RegistrarPagoForm
-              key={transmision.id}
-              transmisionId={transmision.id}
-              tipoSugerido={resumen.totalPagado < resumen.adelantoMinimo ? "ADELANTO" : "SALDO"}
-              onPagoRegistrado={pagoRegistrado}
-            />
-          )}
-
-          {puedeRegistrar && !aceptaPagos && (
-            <p>
-              Esta transmisión está {transmision.estado.toLowerCase()}: no se le pueden registrar
-              pagos.
-            </p>
-          )}
-
-          {transmision.estado === "CANCELADA" && (
-            <DevolucionAdelanto
-              key={transmision.id}
-              transmisionId={transmision.id}
-              puedeRegistrar={puedeRegistrar}
-              onError={manejarError}
-            />
-          )}
-        </>
+      {transmision && (
+        <PagosDeTransmision key={transmision.id} transmision={transmision} puedeRegistrar={puedeRegistrar} />
       )}
     </section>
   );
 }
 
-export default PagosPage;
+// Estado de pago de la transmisión elegida. Se vuelve a crear cada vez que se elige otra.
+function PagosDeTransmision({ transmision, puedeRegistrar }) {
+  const cargar = useCallback(() => obtenerResumenPagos(transmision.id), [transmision.id]);
+  const { datos: resumen, cargando, error, recargar } = useFetch(cargar);
+  const [mensaje, setMensaje] = useState("");
+
+  function pagoRegistrado() {
+    setMensaje("Pago registrado correctamente.");
+    recargar();
+  }
+
+  const aceptaPagos = !ESTADOS_SIN_PAGO.includes(transmision.estado);
+
+  return (
+    <>
+      <Card titulo="Estado de pago">
+        <Alerta tipo="error">{error}</Alerta>
+        <Alerta tipo="exito">{mensaje}</Alerta>
+        {cargando && !resumen && <p role="status">Cargando pagos…</p>}
+        {resumen && <ResumenPagos resumen={resumen} />}
+        {puedeRegistrar && !aceptaPagos && (
+          <Alerta tipo="info">
+            Esta transmisión está {NOMBRE_ESTADO[transmision.estado].toLowerCase()}: no se le pueden registrar pagos.
+          </Alerta>
+        )}
+      </Card>
+
+      {puedeRegistrar && aceptaPagos && resumen && resumen.saldoPendiente > 0 && (
+        <RegistrarPagoForm
+          transmisionId={transmision.id}
+          tipoSugerido={resumen.totalPagado < resumen.adelantoMinimo ? "ADELANTO" : "SALDO"}
+          onPagoRegistrado={pagoRegistrado}
+        />
+      )}
+
+      {transmision.estado === "CANCELADA" && (
+        <DevolucionAdelanto transmisionId={transmision.id} puedeRegistrar={puedeRegistrar} />
+      )}
+    </>
+  );
+}

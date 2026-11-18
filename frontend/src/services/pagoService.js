@@ -1,4 +1,4 @@
-// Llamadas a la API de pagos del cliente (M4, requisito 4.1).
+// Llamadas a la API de pagos del cliente.
 // Lo usa modules/finanzas/pagos/ y habla con el backend a través de services/api.js.
 import { pedir } from "./api";
 

@@ -1,4 +1,4 @@
-// Llamadas a la API de gastos y rendición (M4, requisito 4.2).
+// Llamadas a la API de gastos y rendición.
 // Lo usa modules/finanzas/gastos/ y habla con el backend a través de services/api.js.
 import { pedir } from "./api";
 

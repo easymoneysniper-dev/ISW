@@ -1,4 +1,4 @@
-// Llamadas a la API de costos fijos (M4, requisito 4.3).
+// Llamadas a la API de costos fijos.
 // Lo usa modules/finanzas/costos/ y habla con el backend a través de services/api.js.
 import { pedir } from "./api";
 

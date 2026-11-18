@@ -1,4 +1,4 @@
-// Reglas del formulario de gastos (Clase 7: React Hook Form + Zod).
+// Reglas del formulario de gastos (React Hook Form + Zod).
 // Son las mismas del backend (backend/src/schemas/gasto.schema.js) para avisar antes de enviar.
 import { z } from "zod";
 import { comprobanteSchema, fechaNoFutura } from "./comprobante.schema";
@@ -22,7 +22,7 @@ export const crearGastoSchema = z
     destino: z.string().trim().max(250, "El destino no puede superar los 250 caracteres").optional(),
     comprobante: comprobanteSchema,
   })
-  // Requisito 4.2: en la movilización hay que indicar el origen y el destino del viaje.
+  // En la movilización hay que indicar el origen y el destino del viaje.
   .refine((gasto) => gasto.categoria !== "MOVILIZACION" || gasto.origen, {
     message: "En la movilización debes indicar el origen",
     path: ["origen"],

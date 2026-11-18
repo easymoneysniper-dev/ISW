@@ -1,89 +1,72 @@
-// Pantalla de aportes recibidos. Acción "aportes" del menú (Contador).
+// Pantalla de aportes recibidos (Contador).
 // El Contador consulta los acuerdos y registra la recepción de los aportes Comprometidos o Atrasados
 // con su comprobante; si es canje, ingresa su valor en pesos.
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useSesion } from "../../../hooks/useSesion";
+import { useFetch } from "../../../hooks/useFetch";
 import { listarAportes } from "../../../services/auspiciadorService";
+import CabeceraPagina from "../../../components/ui/CabeceraPagina";
+import Card from "../../../components/ui/Card";
+import Alerta from "../../../components/ui/Alerta";
+import Badge from "../../../components/ui/Badge";
+import Boton from "../../../components/ui/Boton";
 import ListaAportes from "./ListaAportes";
 import RecepcionAporteForm from "./RecepcionAporteForm";
 
 // Solo el Contador registra la recepción (el backend también lo exige).
 const ROLES_QUE_REGISTRAN = ["CONTADOR"];
 
-function AportesPage() {
-  const { usuario, sesionExpirada } = useSesion();
+export default function AportesPage() {
+  const { usuario } = useSesion();
   const puedeRegistrar = ROLES_QUE_REGISTRAN.includes(usuario?.rol);
-
-  const [aportes, setAportes] = useState(null);
+  const { datos: aportes, cargando, error, recargar } = useFetch(listarAportes);
   const [elegido, setElegido] = useState(null);
-  const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState("");
 
-  const manejarError = useCallback(
-    (err) => {
-      if (err.status === 401) {
-        sesionExpirada();
-        return;
-      }
-      setError(err.message);
-    },
-    [sesionExpirada]
-  );
-
-  const cargar = useCallback(() => {
-    listarAportes().then(setAportes).catch(manejarError);
-  }, [manejarError]);
-
-  useEffect(() => {
-    cargar();
-  }, [cargar]);
-
   function recepcionRegistrada() {
-    setMensaje("Recepción registrada: el aporte queda Cumplido");
-    setError("");
+    setMensaje("Recepción registrada: el aporte queda Cumplido.");
     setElegido(null);
-    cargar();
+    recargar();
   }
 
   return (
-    <section>
-      <h2>Aportes de auspiciadores</h2>
-      <p>Registra la recepción de los aportes Comprometidos o Atrasados con su comprobante.</p>
+    <section className="ui-pagina">
+      <CabeceraPagina
+        volver={{ href: "#/finanzas", texto: "Finanzas y auspiciadores" }}
+        titulo="Aportes de auspiciadores"
+        descripcion="Registra la recepción de los aportes Comprometidos o Atrasados con su comprobante."
+        extra={<Badge tono="info">{puedeRegistrar ? "Gestión" : "Solo consulta"}</Badge>}
+      />
 
-      {error && <p role="alert" style={{ color: "#b91c1c" }}>{error}</p>}
-      {mensaje && <p style={{ color: "#166534" }}>{mensaje}</p>}
-      {!aportes && !error && <p>Cargando aportes...</p>}
+      <Alerta tipo="exito">{mensaje}</Alerta>
 
-      {aportes && (
-        <ListaAportes
-          aportes={aportes}
-          renderAccion={(aporte) =>
-            puedeRegistrar &&
-            aporte.estado === "COMPROMETIDO" && (
-              <button
-                type="button"
-                onClick={() => {
-                  setMensaje("");
-                  setElegido(aporte);
-                }}
-              >
-                Registrar recepción
-              </button>
-            )
-          }
-        />
-      )}
+      <Card titulo="Acuerdos y aportes">
+        <Alerta tipo="error">{error}</Alerta>
+        {cargando && !aportes && <p role="status">Cargando aportes…</p>}
+        {aportes && (
+          <ListaAportes
+            aportes={aportes}
+            renderAccion={(aporte) =>
+              puedeRegistrar &&
+              aporte.estado === "COMPROMETIDO" && (
+                <Boton
+                  variante="secundario"
+                  onClick={() => {
+                    setMensaje("");
+                    setElegido(aporte);
+                  }}
+                >
+                  Registrar recepción
+                </Boton>
+              )
+            }
+          />
+        )}
+      </Card>
 
       {elegido && (
-        <RecepcionAporteForm
-          key={elegido.id}
-          aporte={elegido}
-          onRegistrada={recepcionRegistrada}
-          onCancelar={() => setElegido(null)}
-        />
+        <RecepcionAporteForm aporte={elegido} onRegistrada={recepcionRegistrada} onCancelar={() => setElegido(null)} />
       )}
     </section>
   );
 }
-
-export default AportesPage;
