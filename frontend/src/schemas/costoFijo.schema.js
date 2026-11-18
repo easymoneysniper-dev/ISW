@@ -1,4 +1,4 @@
-// Reglas del formulario de costos fijos (Clase 7: React Hook Form + Zod).
+// Reglas del formulario de costos fijos (React Hook Form + Zod).
 // Son las mismas del backend (backend/src/schemas/costoFijo.schema.js). El mes y el año
 // vienen del selector de la pantalla, por eso no están aquí.
 import { z } from "zod";

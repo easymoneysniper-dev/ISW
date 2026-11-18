@@ -1,4 +1,4 @@
-// Pruebas unitarias del esquema de costos fijos (Clase 7). Se corren con: npm run test:run
+// Pruebas unitarias del esquema de costos fijos. Se corren con: npm run test:run
 import { describe, it, expect } from "vitest";
 import { crearCostoFijoSchema } from "../costoFijo.schema";
 

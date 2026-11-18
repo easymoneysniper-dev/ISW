@@ -1,21 +1,26 @@
-// Formulario para registrar un gasto con su comprobante (Clase 7: React Hook Form + Zod).
+// Formulario para registrar un gasto con su comprobante (React Hook Form + Zod).
 // Lo usa GastosPage.jsx. Avisa al padre con onGastoRegistrado para que recargue la lista.
-import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { crearGastoSchema, CATEGORIAS_GASTO } from "../../../schemas/gasto.schema";
 import { fechaDeHoy } from "../../../schemas/comprobante.schema";
 import { registrarGasto } from "../../../services/gastoService";
-import { NOMBRE_CATEGORIA_GASTO, ESTILO_CAMPO, ESTILO_ERROR } from "../formato";
+import { useAccion } from "../../../hooks/useAccion";
+import Card from "../../../components/ui/Card";
+import Campo from "../../../components/ui/Campo";
+import Boton from "../../../components/ui/Boton";
+import Alerta from "../../../components/ui/Alerta";
+import { NOMBRE_CATEGORIA_GASTO } from "../formato";
 
-function RegistrarGastoForm({ transmisionId, onGastoRegistrado }) {
-  const [errorServidor, setErrorServidor] = useState("");
+export default function RegistrarGastoForm({ transmisionId, onGastoRegistrado }) {
+  // Si el backend rechaza el gasto (rendición ya completa, transmisión cotizada, etc.), queda en error.
+  const { ejecutar, guardando, error } = useAccion();
 
   const {
     register,
     handleSubmit,
     control,
-    formState: { errors, isSubmitting },
+    formState: { errors },
     reset,
   } = useForm({
     resolver: zodResolver(crearGastoSchema),
@@ -26,91 +31,62 @@ function RegistrarGastoForm({ transmisionId, onGastoRegistrado }) {
   const esMovilizacion = useWatch({ control, name: "categoria" }) === "MOVILIZACION";
 
   async function onSubmit(datos) {
-    setErrorServidor("");
+    const gasto = await ejecutar(() => registrarGasto(transmisionId, datos));
+    if (!gasto) return;
 
-    try {
-      await registrarGasto(transmisionId, datos);
-      reset({ categoria: "", fecha: fechaDeHoy() });
-      onGastoRegistrado();
-    } catch (error) {
-      // Mensaje del backend: rendición ya completa, transmisión cotizada, etc.
-      setErrorServidor(error.message);
-    }
+    reset({ categoria: "", fecha: fechaDeHoy() });
+    onGastoRegistrado();
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)}>
-      <h3>Registrar gasto</h3>
+    <Card titulo="Registrar gasto">
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <div className="ui-formulario">
+          <Campo etiqueta="Categoría *" error={errors.categoria?.message}>
+            <select {...register("categoria")}>
+              <option value="">Elige una categoría</option>
+              {CATEGORIAS_GASTO.map((categoria) => (
+                <option key={categoria} value={categoria}>
+                  {NOMBRE_CATEGORIA_GASTO[categoria]}
+                </option>
+              ))}
+            </select>
+          </Campo>
 
-      <div style={ESTILO_CAMPO}>
-        <label htmlFor="categoria">Categoría *</label>
-        <select id="categoria" {...register("categoria")}>
-          <option value="">Elige una categoría</option>
-          {CATEGORIAS_GASTO.map((categoria) => (
-            <option key={categoria} value={categoria}>
-              {NOMBRE_CATEGORIA_GASTO[categoria]}
-            </option>
-          ))}
-        </select>
-        {errors.categoria && <p role="alert" style={ESTILO_ERROR}>{errors.categoria.message}</p>}
-      </div>
+          {esMovilizacion && (
+            <>
+              <Campo etiqueta="Origen del viaje *" error={errors.origen?.message}>
+                <input type="text" {...register("origen")} />
+              </Campo>
 
-      {esMovilizacion && (
-        <>
-          <div style={ESTILO_CAMPO}>
-            <label htmlFor="origen">Origen del viaje *</label>
-            <input id="origen" type="text" {...register("origen")} />
-            {errors.origen && <p role="alert" style={ESTILO_ERROR}>{errors.origen.message}</p>}
-          </div>
+              <Campo etiqueta="Destino del viaje *" error={errors.destino?.message}>
+                <input type="text" {...register("destino")} />
+              </Campo>
+            </>
+          )}
 
-          <div style={ESTILO_CAMPO}>
-            <label htmlFor="destino">Destino del viaje *</label>
-            <input id="destino" type="text" {...register("destino")} />
-            {errors.destino && <p role="alert" style={ESTILO_ERROR}>{errors.destino.message}</p>}
-          </div>
-        </>
-      )}
+          <Campo etiqueta="Monto (en pesos) *" error={errors.monto?.message}>
+            <input type="number" min="1" step="1" {...register("monto")} />
+          </Campo>
 
-      <div style={ESTILO_CAMPO}>
-        <label htmlFor="monto">Monto (en pesos) *</label>
-        <input id="monto" type="number" min="1" step="1" {...register("monto")} />
-        {errors.monto && <p role="alert" style={ESTILO_ERROR}>{errors.monto.message}</p>}
-      </div>
+          <Campo etiqueta="Fecha del gasto *" error={errors.fecha?.message}>
+            <input type="date" max={fechaDeHoy()} {...register("fecha")} />
+          </Campo>
 
-      <div style={ESTILO_CAMPO}>
-        <label htmlFor="fecha">Fecha del gasto *</label>
-        <input id="fecha" type="date" max={fechaDeHoy()} {...register("fecha")} />
-        {errors.fecha && <p role="alert" style={ESTILO_ERROR}>{errors.fecha.message}</p>}
-      </div>
+          <Campo etiqueta="Comprobante *" ayuda="JPG, PNG o PDF, máx. 5 MB." error={errors.comprobante?.message}>
+            <input type="file" accept="image/jpeg,image/png,application/pdf" {...register("comprobante")} />
+          </Campo>
 
-      <div style={ESTILO_CAMPO}>
-        <label htmlFor="observacion">Observación</label>
-        <textarea id="observacion" {...register("observacion")} />
-        {errors.observacion && (
-          <p role="alert" style={ESTILO_ERROR}>{errors.observacion.message}</p>
-        )}
-      </div>
+          <Campo etiqueta="Observación" anchoCompleto error={errors.observacion?.message}>
+            <textarea rows="2" {...register("observacion")} />
+          </Campo>
+        </div>
 
-      <div style={ESTILO_CAMPO}>
-        <label htmlFor="comprobante">Comprobante (JPG, PNG o PDF, máx. 5 MB) *</label>
-        <input
-          id="comprobante"
-          type="file"
-          accept="image/jpeg,image/png,application/pdf"
-          {...register("comprobante")}
-        />
-        {errors.comprobante && (
-          <p role="alert" style={ESTILO_ERROR}>{errors.comprobante.message}</p>
-        )}
-      </div>
-
-      {errorServidor && <p role="alert" style={ESTILO_ERROR}>{errorServidor}</p>}
-
-      <button type="submit" disabled={isSubmitting}>
-        {isSubmitting ? "Guardando..." : "Registrar gasto"}
-      </button>
-    </form>
+        <Alerta tipo="error">{error}</Alerta>
+        <div className="ui-botones">
+          <Boton type="submit" cargando={guardando}>Registrar gasto</Boton>
+        </div>
+      </form>
+    </Card>
   );
 }
-
-export default RegistrarGastoForm;
