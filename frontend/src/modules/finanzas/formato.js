@@ -59,17 +59,6 @@ export function periodoActual() {
   return { anio: hoy.getFullYear(), mes: hoy.getMonth() + 1 };
 }
 
-// Estilos comunes de los formularios de Finanzas.
-export const ESTILO_CAMPO = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "0.25rem",
-  maxWidth: "360px",
-  marginBottom: "0.75rem",
-};
-
-export const ESTILO_ERROR = { color: "#b91c1c", margin: 0 };
-
 // Auspiciadores y aportes. "Atrasado" lo calcula el backend.
 export const NOMBRE_TIPO_APORTE = {
   DINERO: "Dinero",
@@ -81,13 +70,6 @@ export const NOMBRE_ESTADO_APORTE = {
   ATRASADO: "Atrasado",
   CUMPLIDO: "Cumplido",
   NO_CUMPLIDO: "No cumplido",
-};
-
-export const COLOR_ESTADO_APORTE = {
-  COMPROMETIDO: { fondo: "#dbeafe", texto: "#1e40af" },
-  ATRASADO: { fondo: "#fee2e2", texto: "#991b1b" },
-  CUMPLIDO: { fondo: "#dcfce7", texto: "#166534" },
-  NO_CUMPLIDO: { fondo: "#e5e7eb", texto: "#374151" },
 };
 
 // Tono de la insignia de cada estado de un aporte.

@@ -1,8 +1,14 @@
-// Pantalla de acuerdos con auspiciadores. Acción "acuerdos" del menú (Dueño).
+// Pantalla de acuerdos con auspiciadores (Dueño).
 // El Dueño registra auspiciadores y acuerdos, ve el historial y marca aportes como No cumplido.
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useSesion } from "../../../hooks/useSesion";
+import { useFetch } from "../../../hooks/useFetch";
 import { listarAuspiciadores, listarAportes } from "../../../services/auspiciadorService";
+import CabeceraPagina from "../../../components/ui/CabeceraPagina";
+import Card from "../../../components/ui/Card";
+import Alerta from "../../../components/ui/Alerta";
+import Badge from "../../../components/ui/Badge";
+import Boton from "../../../components/ui/Boton";
 import ListaAportes from "./ListaAportes";
 import RegistrarAuspiciadorForm from "./RegistrarAuspiciadorForm";
 import RegistrarAcuerdoForm from "./RegistrarAcuerdoForm";
@@ -11,93 +17,70 @@ import NoCumplidoForm from "./NoCumplidoForm";
 // Solo el Dueño registra acuerdos y marca No cumplido (el backend también lo exige).
 const ROLES_QUE_REGISTRAN = ["DUENO"];
 
-function AcuerdosPage() {
-  const { usuario, sesionExpirada } = useSesion();
+const cargar = () => Promise.all([listarAuspiciadores(), listarAportes()]);
+
+export default function AcuerdosPage() {
+  const { usuario } = useSesion();
   const puedeRegistrar = ROLES_QUE_REGISTRAN.includes(usuario?.rol);
-
-  const [auspiciadores, setAuspiciadores] = useState([]);
-  const [aportes, setAportes] = useState(null);
+  const { datos, cargando, error, recargar } = useFetch(cargar);
+  const [auspiciadores, aportes] = datos ?? [[], null];
   const [elegido, setElegido] = useState(null);
-  const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState("");
-
-  const manejarError = useCallback(
-    (err) => {
-      if (err.status === 401) {
-        sesionExpirada();
-        return;
-      }
-      setError(err.message);
-    },
-    [sesionExpirada]
-  );
-
-  const cargar = useCallback(() => {
-    Promise.all([listarAuspiciadores(), listarAportes()])
-      .then(([listaAuspiciadores, listaAportes]) => {
-        setAuspiciadores(listaAuspiciadores);
-        setAportes(listaAportes);
-      })
-      .catch(manejarError);
-  }, [manejarError]);
-
-  useEffect(() => {
-    cargar();
-  }, [cargar]);
 
   function listo(texto) {
     setMensaje(texto);
-    setError("");
     setElegido(null);
-    cargar();
+    recargar();
   }
 
   return (
-    <section>
-      <h2>Acuerdos con auspiciadores</h2>
+    <section className="ui-pagina">
+      <CabeceraPagina
+        volver={{ href: "#/finanzas", texto: "Finanzas y auspiciadores" }}
+        titulo="Acuerdos con auspiciadores"
+        descripcion="Registra auspiciadores y sus acuerdos, revisa el historial y marca los aportes que no se cumplieron."
+        extra={<Badge tono="info">{puedeRegistrar ? "Gestión" : "Solo consulta"}</Badge>}
+      />
 
-      {error && <p role="alert" style={{ color: "#b91c1c" }}>{error}</p>}
-      {mensaje && <p style={{ color: "#166534" }}>{mensaje}</p>}
+      <Alerta tipo="exito">{mensaje}</Alerta>
 
       {puedeRegistrar && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "2rem" }}>
+        <>
           <RegistrarAuspiciadorForm
-            onRegistrado={(auspiciador) => listo(`Auspiciador "${auspiciador.nombre}" registrado`)}
+            onRegistrado={(auspiciador) => listo(`Auspiciador "${auspiciador.nombre}" registrado.`)}
           />
           <RegistrarAcuerdoForm
             auspiciadores={auspiciadores}
-            onRegistrado={() => listo("Acuerdo registrado: queda Comprometido")}
-            onError={manejarError}
+            onRegistrado={() => listo("Acuerdo registrado: queda Comprometido.")}
           />
-        </div>
+        </>
       )}
 
-      <h3>Historial de aportes</h3>
-      {!aportes && !error && <p>Cargando acuerdos...</p>}
-      {aportes && (
-        <ListaAportes
-          aportes={aportes}
-          renderAccion={(aporte) =>
-            puedeRegistrar &&
-            aporte.estado === "COMPROMETIDO" && (
-              <button type="button" onClick={() => setElegido(aporte)}>
-                Marcar No cumplido
-              </button>
-            )
-          }
-        />
-      )}
+      <Card titulo="Historial de aportes">
+        <Alerta tipo="error">{error}</Alerta>
+        {cargando && !aportes && <p role="status">Cargando acuerdos…</p>}
+        {aportes && (
+          <ListaAportes
+            aportes={aportes}
+            renderAccion={(aporte) =>
+              puedeRegistrar &&
+              aporte.estado === "COMPROMETIDO" && (
+                <Boton variante="secundario" onClick={() => setElegido(aporte)}>
+                  Marcar No cumplido
+                </Boton>
+              )
+            }
+          />
+        )}
+      </Card>
 
       {elegido && (
         <NoCumplidoForm
-          key={elegido.id}
           aporte={elegido}
-          onMarcado={() => listo("Aporte marcado como No cumplido")}
+          onMarcado={() => listo("Aporte marcado como No cumplido.")}
           onCancelar={() => setElegido(null)}
         />
       )}
     </section>
   );
 }
-
-export default AcuerdosPage;

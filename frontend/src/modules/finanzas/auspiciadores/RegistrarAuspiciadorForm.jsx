@@ -1,58 +1,52 @@
 // Formulario para registrar un auspiciador nuevo con su nombre y contacto.
 // Lo usa AcuerdosPage.jsx. Avisa al padre con onRegistrado para que recargue la lista.
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { crearAuspiciadorSchema } from "../../../schemas/auspiciador.schema";
 import { registrarAuspiciador } from "../../../services/auspiciadorService";
-import { ESTILO_CAMPO, ESTILO_ERROR } from "../formato";
+import { useAccion } from "../../../hooks/useAccion";
+import Card from "../../../components/ui/Card";
+import Campo from "../../../components/ui/Campo";
+import Boton from "../../../components/ui/Boton";
+import Alerta from "../../../components/ui/Alerta";
 
-function RegistrarAuspiciadorForm({ onRegistrado }) {
-  const [errorServidor, setErrorServidor] = useState("");
+export default function RegistrarAuspiciadorForm({ onRegistrado }) {
+  // Si el backend lo rechaza (por ejemplo, el auspiciador ya existe), queda en error.
+  const { ejecutar, guardando, error } = useAccion();
 
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors },
     reset,
   } = useForm({ resolver: zodResolver(crearAuspiciadorSchema) });
 
   async function onSubmit(datos) {
-    setErrorServidor("");
+    const auspiciador = await ejecutar(() => registrarAuspiciador(datos));
+    if (!auspiciador) return;
 
-    try {
-      const auspiciador = await registrarAuspiciador(datos);
-      reset();
-      onRegistrado(auspiciador);
-    } catch (error) {
-      // Mensaje del backend, por ejemplo si el auspiciador ya existe.
-      setErrorServidor(error.message);
-    }
+    reset();
+    onRegistrado(auspiciador);
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)}>
-      <h3>Nuevo auspiciador</h3>
+    <Card titulo="Nuevo auspiciador">
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <div className="ui-formulario">
+          <Campo etiqueta="Nombre *" error={errors.nombre?.message}>
+            <input type="text" {...register("nombre")} />
+          </Campo>
 
-      <div style={ESTILO_CAMPO}>
-        <label htmlFor="nombreAuspiciador">Nombre *</label>
-        <input id="nombreAuspiciador" type="text" {...register("nombre")} />
-        {errors.nombre && <p role="alert" style={ESTILO_ERROR}>{errors.nombre.message}</p>}
-      </div>
+          <Campo etiqueta="Contacto (teléfono o correo) *" error={errors.contacto?.message}>
+            <input type="text" {...register("contacto")} />
+          </Campo>
+        </div>
 
-      <div style={ESTILO_CAMPO}>
-        <label htmlFor="contactoAuspiciador">Contacto (teléfono o correo) *</label>
-        <input id="contactoAuspiciador" type="text" {...register("contacto")} />
-        {errors.contacto && <p role="alert" style={ESTILO_ERROR}>{errors.contacto.message}</p>}
-      </div>
-
-      {errorServidor && <p role="alert" style={ESTILO_ERROR}>{errorServidor}</p>}
-
-      <button type="submit" disabled={isSubmitting}>
-        {isSubmitting ? "Guardando..." : "Registrar auspiciador"}
-      </button>
-    </form>
+        <Alerta tipo="error">{error}</Alerta>
+        <div className="ui-botones">
+          <Boton type="submit" cargando={guardando}>Registrar auspiciador</Boton>
+        </div>
+      </form>
+    </Card>
   );
 }
-
-export default RegistrarAuspiciadorForm;
