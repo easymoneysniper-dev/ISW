@@ -60,11 +60,13 @@ export const modulos = [
     "id": "personal",
     "titulo": "Personal y asignaciones",
     "descripcion": "Coordina al equipo y sus comisiones.",
-    "responsable": "Teo",
+    "responsable": "Cristobal",
     "acciones": [
       {
         "id": "trabajadores",
         "titulo": "Trabajadores y disponibilidad",
+        "disponible": true,
+        "descripcion": "Registra trabajadores, sus roles habilitados y sus bloques de disponibilidad horaria.",
         "roles": [
           "DUENO"
         ],
@@ -73,6 +75,8 @@ export const modulos = [
       {
         "id": "asignaciones",
         "titulo": "Asignaciones y porcentajes",
+        "disponible": true,
+        "descripcion": "Asigna personal activo a transmisiones confirmadas y define los porcentajes de comisión.",
         "roles": [
           "DUENO"
         ],
@@ -81,6 +85,8 @@ export const modulos = [
       {
         "id": "asistencia",
         "titulo": "Reemplazos y asistencia",
+        "disponible": true,
+        "descripcion": "Registra reemplazos, retiros, asistencia del personal y cámaras utilizadas.",
         "roles": [
           "DUENO"
         ],
